@@ -3,12 +3,27 @@
   "displayName": "ReptClip",
   "description": "Turn your project into clean Markdown context for an LLM chat, right from a panel in VS Code.",
   "version": "0.1.0",
-  "publisher": "your-publisher-id",
+  "publisher": "effessdev",
   "private": true,
   "engines": {
     "vscode": "^1.85.0"
   },
-  "categories": ["Other"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/effessdev/reptclip-vscode.git"
+  },
+  "keywords": [
+    "llm",
+    "markdown",
+    "context",
+    "clipboard",
+    "chatgpt",
+    "gemini",
+    "claude"
+  ],
+  "categories": [
+    "Other"
+  ],
   "activationEvents": [],
   "main": "./dist/extension.js",
   "contributes": {
@@ -17,7 +32,7 @@
         {
           "id": "reptclip",
           "title": "ReptClip",
-          "icon": "media/icon.svg"
+          "icon": "media/icon.png"
         }
       ]
     },
