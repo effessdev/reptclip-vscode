@@ -1,11 +1,14 @@
-import * as vscode from 'vscode';
+import * as vscode from "vscode";
 
-export function getHtml(webview: vscode.Webview, extensionUri: vscode.Uri): string {
+export function getHtml(
+  webview: vscode.Webview,
+  extensionUri: vscode.Uri,
+): string {
   const scriptUri = webview.asWebviewUri(
-    vscode.Uri.joinPath(extensionUri, 'webview-ui', 'main.js')
+    vscode.Uri.joinPath(extensionUri, "webview-ui", "main.js"),
   );
   const styleUri = webview.asWebviewUri(
-    vscode.Uri.joinPath(extensionUri, 'webview-ui', 'style.css')
+    vscode.Uri.joinPath(extensionUri, "webview-ui", "style.css"),
   );
   const nonce = getNonce();
 
@@ -24,7 +27,7 @@ export function getHtml(webview: vscode.Webview, extensionUri: vscode.Uri): stri
   <div id="warning" class="warning" hidden>Open a folder to use ReptClip.</div>
 
   <section class="section">
-    <label for="include">Files to include</label>
+    <label for="include">Files to include (separated by spaces, glob patterns supported)</label>
     <textarea
       id="include"
       rows="2"
@@ -34,7 +37,7 @@ export function getHtml(webview: vscode.Webview, extensionUri: vscode.Uri): stri
   </section>
 
   <section class="section">
-    <label for="exclude">Files to exclude</label>
+    <label for="exclude">Files to exclude from included files</label>
     <textarea
       id="exclude"
       rows="2"
@@ -44,6 +47,7 @@ export function getHtml(webview: vscode.Webview, extensionUri: vscode.Uri): stri
   </section>
 
   <section class="section checkboxes">
+    <label>Click Generate or press enter inside an input to copy</label>
     <label class="checkbox">
       <input type="checkbox" id="clipboard" />
       <span>Clipboard</span>
@@ -73,8 +77,9 @@ export function getHtml(webview: vscode.Webview, extensionUri: vscode.Uri): stri
 }
 
 function getNonce(): string {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  let text = '';
+  const chars =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  let text = "";
   for (let i = 0; i < 32; i++) {
     text += chars.charAt(Math.floor(Math.random() * chars.length));
   }
