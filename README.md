@@ -1,8 +1,10 @@
-# ReptClip (VS Code Extension)
+# ReptClip for VS Code - Fast Context for Your ChatBot
 
-A panel-based reimplementation of the [ReptClip](https://github.com/effessdev/reptclip) CLI idea: turn your
-project into clean Markdown context for an LLM chat, without leaving the editor and without
-needing to quote every glob pattern.
+Turn a project directory into clean Markdown context for an LLM chat (no `.gitignore`ed files), and copies it straight to your clipboard.
+
+*Preview image placeholder*
+
+> **Note:** If you are looking for the original ReptClip (the CLI version), here is the link: [ReptClip](https://github.com/effessdev/reptclip)
 
 ## What's different from the CLI
 
