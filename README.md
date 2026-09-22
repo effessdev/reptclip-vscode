@@ -8,7 +8,7 @@ Turn your project into clean Markdown context for AI chatbots and copy it **stra
 
 ## Using it
 
-1. Open the bottom panel using `Ctrl + \``
+1. Open the bottom panel using `` Ctrl + ` ``
 2. Open the **ReptClip** tab in the panel (Click `...` if you can't see it)
 3. **Files to include**: patterns/paths separated by spaces (e.g. `AGENTS.md src/**/*.py`). Quotes are only needed if a pattern contains a space
 4. **Files to exclude**: same syntax; applied after include patterns
