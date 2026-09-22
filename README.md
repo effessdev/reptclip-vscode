@@ -4,7 +4,7 @@ Turn your project into clean Markdown context for AI chatbots and copy it **stra
 
 <img width="1919" height="1015" alt="preview" src="https://github.com/user-attachments/assets/ef14392e-3fee-4451-b74c-b8fbd8d2f2a0" />
 
-> **Note:** If you are looking for the original ReptClip (the CLI version), here is the link: [ReptClip](https://github.com/effessdev/reptclip)
+**Note:** If you are looking for the original ReptClip (the CLI version), here is the link: [ReptClip](https://github.com/effessdev/reptclip)
 
 ## Using it
 
