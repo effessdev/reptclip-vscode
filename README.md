@@ -1,5 +1,8 @@
 # ReptClip for VS Code - Fast Context for Your ChatBot
 
+[![VS Code Marketplace](https://img.shields.io/badge/VS%20Code-Marketplace-blue?logo=visualstudiocode)](https://marketplace.visualstudio.com/items?itemName=effessdev.reptclip-vscode)
+[![Open VSX](https://img.shields.io/badge/Open%20VSX-Registry-purple)](https://open-vsx.org/extension/effessdev/reptclip-vscode)
+
 Turn your project into clean Markdown context for AI chatbots and copy it **straight to your clipboard**, automatically respecting `.gitignore` files.
 
 <img width="100%" alt="Preview image" src="https://github.com/user-attachments/assets/ef14392e-3fee-4451-b74c-b8fbd8d2f2a0" />
