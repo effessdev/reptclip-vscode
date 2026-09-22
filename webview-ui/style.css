@@ -1,0 +1,106 @@
+body {
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+  color: var(--vscode-foreground);
+  padding: 10px 12px;
+  margin: 0;
+}
+
+.warning {
+  background: var(--vscode-inputValidation-warningBackground);
+  border: 1px solid var(--vscode-inputValidation-warningBorder);
+  padding: 6px 8px;
+  border-radius: 2px;
+  margin-bottom: 10px;
+  font-size: 0.9em;
+}
+
+.section {
+  margin-bottom: 10px;
+}
+
+.section > label {
+  display: block;
+  font-weight: 600;
+  font-size: 0.85em;
+  opacity: 0.85;
+  margin-bottom: 4px;
+}
+
+textarea,
+input[type='text'] {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  border: 1px solid var(--vscode-input-border, transparent);
+  border-radius: 2px;
+  padding: 4px 6px;
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: var(--vscode-editor-font-size, 1em);
+  resize: vertical;
+}
+
+textarea:focus,
+input[type='text']:focus {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
+}
+
+/* Section 3: checkboxes flow like normal text instead of stacking as a
+   list, to save vertical space in a narrow bottom panel. */
+.checkboxes {
+  line-height: 1.9;
+}
+
+.checkboxes .checkbox,
+.checkboxes .output-file {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 16px;
+  font-weight: normal;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.checkboxes input[type='checkbox'] {
+  margin: 0;
+}
+
+.checkboxes .output-file input[type='text'] {
+  width: 130px;
+  display: inline-block;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+button#runBtn {
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+  border: none;
+  padding: 6px 16px;
+  border-radius: 2px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: inherit;
+}
+
+button#runBtn:hover {
+  background: var(--vscode-button-hoverBackground);
+}
+
+button#runBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.status {
+  font-size: 0.85em;
+  opacity: 0.85;
+}

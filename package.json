@@ -1,0 +1,52 @@
+{
+  "name": "reptclip-vscode",
+  "displayName": "ReptClip",
+  "description": "Turn your project into clean Markdown context for an LLM chat, right from a panel in VS Code.",
+  "version": "0.1.0",
+  "publisher": "your-publisher-id",
+  "private": true,
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Other"],
+  "activationEvents": [],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "panel": [
+        {
+          "id": "reptclip",
+          "title": "ReptClip",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "reptclip": [
+        {
+          "type": "webview",
+          "id": "reptclip.panelView",
+          "name": "ReptClip"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "node esbuild.js --production",
+    "watch": "node esbuild.js --watch",
+    "compile": "tsc --noEmit -p ./",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/micromatch": "^4.0.9",
+    "@types/node": "^20.14.0",
+    "@types/vscode": "^1.85.0",
+    "esbuild": "^0.23.0",
+    "typescript": "^5.5.0"
+  },
+  "dependencies": {
+    "ignore": "^5.3.1",
+    "micromatch": "^4.0.8"
+  }
+}
