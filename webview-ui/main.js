@@ -92,6 +92,17 @@
   }
   const requestSuggestionsDebounced = debounce(requestSuggestions, 120);
 
+  // Splits a candidate path into its directory prefix and final segment so
+  // the dropdown can de-emphasize the folder part (matters now that
+  // suggestions can match by file name deep in the tree).
+  function splitPath(item) {
+    const cut = item.endsWith("/") ? item.length - 1 : item.length;
+    const slash = item.lastIndexOf("/", cut - 1);
+    return slash === -1
+      ? { dir: "", name: item }
+      : { dir: item.slice(0, slash + 1), name: item.slice(slash + 1) };
+  }
+
   function renderSuggestions(items) {
     const el = completion.el;
     if (!el) {
@@ -111,7 +122,17 @@
       row.setAttribute("role", "option");
 
       const label = document.createElement("span");
-      label.textContent = item;
+      const { dir, name } = splitPath(item);
+      if (dir) {
+        const dirSpan = document.createElement("span");
+        dirSpan.className = "dir";
+        dirSpan.textContent = dir;
+        label.appendChild(dirSpan);
+      }
+      const nameSpan = document.createElement("span");
+      nameSpan.className = "name";
+      nameSpan.textContent = name;
+      label.appendChild(nameSpan);
 
       const kind = document.createElement("span");
       kind.className = "kind";
