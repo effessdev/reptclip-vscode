@@ -1,4 +1,3 @@
 - [ ] Give suggestions while typing
-- [ ] Make each item in the textareas look like tags, with an X button to remove it quickly using the mouse
+- [ ] Make each item in the textareas look like tags so they are visually separate
 - [ ] Items pointing to non-existent files/folders turn red
-- [ ] Items should only *look* like tags, they should be editable just like before (like a normal teaxarea), with the exception of that X button. Ctrl + A, backspacing, editing, etc. should work normally.
