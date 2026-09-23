@@ -1,0 +1,4 @@
+- [ ] Give suggestions while typing
+- [ ] Make each item in the textareas look like tags, with an X button to remove it quickly
+- [ ] Items pointing to non-existent files/folders turn red
+- [ ] Each item is still editable, but clicking backspace directly without clicking the left arrow would delete the whole thing (Ctrl + Z should still work)
