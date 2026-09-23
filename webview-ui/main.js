@@ -13,6 +13,18 @@
     runBtn: document.getElementById("runBtn"),
     status: document.getElementById("status"),
     warning: document.getElementById("warning"),
+    suggest: document.getElementById("suggest"),
+  };
+
+  // The include/exclude boxes drive autocomplete; the output box does not.
+  const patternFields = [els.include, els.exclude];
+
+  const completion = {
+    el: null, // textarea the dropdown is attached to
+    items: [], // current suggestion strings
+    index: -1, // highlighted item
+    start: 0, // cursor offset where the active token began
+    requestId: 0, // guards against out-of-order suggestResult replies
   };
 
   function currentState() {
@@ -44,22 +56,182 @@
     vscode.postMessage({ type: "run", state: currentState() });
   }
 
-  [els.include, els.exclude, els.output].forEach((el) => {
-    el.addEventListener("input", persistDebounced);
-  });
-  [els.clipboard, els.structure, els.promptTail].forEach((el) => {
-    el.addEventListener("change", persist);
-  });
+  // --- Autocomplete -------------------------------------------------------
 
-  // Enter runs the task from either pattern box; Shift+Enter still inserts
-  // a newline in case someone wants to lay patterns out across lines.
-  [els.include, els.exclude].forEach((el) => {
+  // Returns the token under the caret: where it starts and the prefix typed so
+  // far. A token is bounded by whitespace or a quote on either side.
+  function tokenAtCursor(el) {
+    const text = el.value;
+    const cursor = el.selectionStart;
+    let i = cursor - 1;
+    while (i >= 0 && !/[\s"']/.test(text[i])) {
+      i--;
+    }
+    return { start: i + 1, prefix: text.slice(i + 1, cursor) };
+  }
+
+  function hideSuggestions() {
+    els.suggest.hidden = true;
+    completion.items = [];
+    completion.index = -1;
+    completion.el = null;
+  }
+
+  function requestSuggestions(el) {
+    const { start, prefix } = tokenAtCursor(el);
+    completion.el = el;
+    completion.start = start;
+
+    if (!prefix) {
+      hideSuggestions();
+      return;
+    }
+
+    const requestId = ++completion.requestId;
+    vscode.postMessage({ type: "suggest", requestId, prefix });
+  }
+  const requestSuggestionsDebounced = debounce(requestSuggestions, 120);
+
+  function renderSuggestions(items) {
+    const el = completion.el;
+    if (!el) {
+      return;
+    }
+
+    completion.items = items;
+    completion.index = items.length > 0 ? 0 : -1;
+
+    while (els.suggest.firstChild) {
+      els.suggest.removeChild(els.suggest.firstChild);
+    }
+    items.forEach((item, idx) => {
+      const isFolder = item.endsWith("/");
+      const row = document.createElement("div");
+      row.className = "item" + (idx === completion.index ? " active" : "");
+      row.setAttribute("role", "option");
+
+      const label = document.createElement("span");
+      label.textContent = item;
+
+      const kind = document.createElement("span");
+      kind.className = "kind";
+      kind.textContent = isFolder ? "folder" : "file";
+
+      row.append(label, kind);
+      // mousedown (not click) so it fires before the textarea loses focus.
+      row.addEventListener("mousedown", (event) => {
+        event.preventDefault();
+        acceptSuggestion(idx);
+      });
+      els.suggest.appendChild(row);
+    });
+
+    if (items.length === 0) {
+      hideSuggestions();
+      return;
+    }
+
+    positionSuggestions(el);
+    els.suggest.hidden = false;
+  }
+
+  function positionSuggestions(el) {
+    const rect = el.getBoundingClientRect();
+    els.suggest.style.left = `${rect.left + window.scrollX}px`;
+    els.suggest.style.top = `${rect.bottom + window.scrollY + 2}px`;
+    els.suggest.style.width = `${rect.width}px`;
+  }
+
+  function highlight(index) {
+    const rows = els.suggest.querySelectorAll(".item");
+    if (rows.length === 0) {
+      return;
+    }
+    completion.index = (index + rows.length) % rows.length;
+    rows.forEach((row, i) =>
+      row.classList.toggle("active", i === completion.index),
+    );
+    rows[completion.index].scrollIntoView({ block: "nearest" });
+  }
+
+  function acceptSuggestion(index = completion.index) {
+    const el = completion.el;
+    const item = completion.items[index];
+    if (!el || item === undefined) {
+      return;
+    }
+
+    const text = el.value;
+    const caret = el.selectionStart;
+    const before = text.slice(0, completion.start);
+    const after = text.slice(caret);
+    const newValue = before + item + after;
+
+    el.value = newValue;
+    const newCaret = completion.start + item.length;
+    el.focus();
+    el.setSelectionRange(newCaret, newCaret);
+
+    persist();
+    hideSuggestions();
+
+    // Choosing a folder should immediately offer its contents.
+    if (item.endsWith("/")) {
+      requestSuggestions(el);
+    }
+  }
+
+  // --- Event wiring -------------------------------------------------------
+
+  patternFields.forEach((el) => {
+    el.addEventListener("input", () => {
+      persistDebounced();
+      requestSuggestionsDebounced(el);
+    });
+
+    // Enter runs the task; Shift+Enter inserts a newline. While the dropdown is
+    // open, arrows navigate and Enter/Tab accept instead of running.
     el.addEventListener("keydown", (event) => {
+      const open = !els.suggest.hidden && completion.items.length > 0;
+
+      if (open && event.key === "ArrowDown") {
+        event.preventDefault();
+        highlight(completion.index + 1);
+        return;
+      }
+      if (open && event.key === "ArrowUp") {
+        event.preventDefault();
+        highlight(completion.index - 1);
+        return;
+      }
+      if (open && (event.key === "Enter" || event.key === "Tab")) {
+        event.preventDefault();
+        acceptSuggestion();
+        return;
+      }
+      if (event.key === "Escape") {
+        if (open) {
+          event.preventDefault();
+          hideSuggestions();
+        }
+        return;
+      }
+
       if (event.key === "Enter" && !event.shiftKey) {
         event.preventDefault();
         run();
       }
     });
+
+    el.addEventListener("blur", () => {
+      // Give a pending mousedown on a row a chance to fire first.
+      setTimeout(hideSuggestions, 120);
+    });
+  });
+
+  els.output.addEventListener("input", persistDebounced);
+  [els.clipboard, els.structure, els.promptTail].forEach((el) => {
+    el.addEventListener("change", persist);
   });
 
   els.runBtn.addEventListener("click", run);
@@ -77,6 +249,13 @@
       els.output.value = s.outputFile ?? "";
       els.warning.hidden = message.hasWorkspace;
       els.runBtn.disabled = !message.hasWorkspace;
+      return;
+    }
+
+    if (message.type === "suggestResult") {
+      if (message.requestId === completion.requestId) {
+        renderSuggestions(message.items);
+      }
       return;
     }
 

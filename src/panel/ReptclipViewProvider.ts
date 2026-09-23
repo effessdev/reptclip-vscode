@@ -1,73 +1,112 @@
-import * as vscode from 'vscode';
-import { getHtml } from './getHtml';
-import { loadProjectState, saveProjectState } from '../core/projectStorage';
-import { generateContext } from '../core/generateContext';
-import { copyToClipboard } from '../core/clipboard';
-import { writeOutputFile } from '../core/outputWriter';
-import { defaultUiState, HostToWebviewMessage, WebviewToHostMessage } from '../core/types';
+import * as vscode from "vscode";
+import { getHtml } from "./getHtml";
+import { loadProjectState, saveProjectState } from "../core/projectStorage";
+import { generateContext } from "../core/generateContext";
+import { copyToClipboard } from "../core/clipboard";
+import { writeOutputFile } from "../core/outputWriter";
+import { collectCandidates, filterCandidates } from "../core/completions";
+import {
+  defaultUiState,
+  HostToWebviewMessage,
+  WebviewToHostMessage,
+} from "../core/types";
 
 export class ReptclipViewProvider implements vscode.WebviewViewProvider {
-  public static readonly viewType = 'reptclip.panelView';
+  public static readonly viewType = "reptclip.panelView";
+
+  /** Cached workspace path list used for autocomplete; built on first use. */
+  private candidates?: Promise<string[]>;
 
   constructor(
     private readonly extensionUri: vscode.Uri,
-    private readonly context: vscode.ExtensionContext
+    private readonly context: vscode.ExtensionContext,
   ) {}
 
   resolveWebviewView(webviewView: vscode.WebviewView): void {
     webviewView.webview.options = {
       enableScripts: true,
-      localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, 'webview-ui')],
+      localResourceRoots: [
+        vscode.Uri.joinPath(this.extensionUri, "webview-ui"),
+      ],
     };
     webviewView.webview.html = getHtml(webviewView.webview, this.extensionUri);
 
-    const post = (message: HostToWebviewMessage) => webviewView.webview.postMessage(message);
+    const post = (message: HostToWebviewMessage) =>
+      webviewView.webview.postMessage(message);
 
     const rootDir = this.getRootDir();
-    const state = rootDir ? loadProjectState(this.context, rootDir) : defaultUiState();
-    post({ type: 'init', state, hasWorkspace: !!rootDir });
+    const state = rootDir
+      ? loadProjectState(this.context, rootDir)
+      : defaultUiState();
+    post({ type: "init", state, hasWorkspace: !!rootDir });
 
-    webviewView.webview.onDidReceiveMessage(async (message: WebviewToHostMessage) => {
-      switch (message.type) {
-        case 'stateChanged': {
-          if (rootDir) {
-            await saveProjectState(this.context, rootDir, message.state);
-          }
-          return;
-        }
-
-        case 'run': {
-          if (!rootDir) {
-            vscode.window.showWarningMessage('ReptClip: open a folder first.');
+    webviewView.webview.onDidReceiveMessage(
+      async (message: WebviewToHostMessage) => {
+        switch (message.type) {
+          case "stateChanged": {
+            if (rootDir) {
+              await saveProjectState(this.context, rootDir, message.state);
+            }
             return;
           }
 
-          await saveProjectState(this.context, rootDir, message.state);
-
-          try {
-            const result = await generateContext(rootDir, message.state);
-
-            if (message.state.clipboard) {
-              await copyToClipboard(result.markdown);
+          case "suggest": {
+            if (!rootDir) {
+              return;
             }
-            if (message.state.outputFile.trim()) {
-              await writeOutputFile(rootDir, message.state.outputFile, result.markdown);
-            }
-
-            post({ type: 'runResult', ok: true, fileCount: result.includedFiles.length });
-            vscode.window.setStatusBarMessage(
-              `ReptClip: included ${result.includedFiles.length} file(s)`,
-              3000
-            );
-          } catch (err) {
-            const message_ = err instanceof Error ? err.message : String(err);
-            vscode.window.showErrorMessage(`ReptClip failed: ${message_}`);
-            post({ type: 'runResult', ok: false, error: message_ });
+            this.candidates ??= collectCandidates(rootDir);
+            const candidates = await this.candidates;
+            post({
+              type: "suggestResult",
+              requestId: message.requestId,
+              items: filterCandidates(candidates, message.prefix),
+            });
+            return;
           }
-          return;
+
+          case "run": {
+            if (!rootDir) {
+              vscode.window.showWarningMessage(
+                "ReptClip: open a folder first.",
+              );
+              return;
+            }
+
+            await saveProjectState(this.context, rootDir, message.state);
+
+            try {
+              const result = await generateContext(rootDir, message.state);
+
+              if (message.state.clipboard) {
+                await copyToClipboard(result.markdown);
+              }
+              if (message.state.outputFile.trim()) {
+                await writeOutputFile(
+                  rootDir,
+                  message.state.outputFile,
+                  result.markdown,
+                );
+              }
+
+              post({
+                type: "runResult",
+                ok: true,
+                fileCount: result.includedFiles.length,
+              });
+              vscode.window.setStatusBarMessage(
+                `ReptClip: included ${result.includedFiles.length} file(s)`,
+                3000,
+              );
+            } catch (err) {
+              const message_ = err instanceof Error ? err.message : String(err);
+              vscode.window.showErrorMessage(`ReptClip failed: ${message_}`);
+              post({ type: "runResult", ok: false, error: message_ });
+            }
+            return;
+          }
         }
-      }
-    });
+      },
+    );
   }
 
   /**

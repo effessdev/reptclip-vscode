@@ -13,12 +13,12 @@ export interface UiState {
 
 export function defaultUiState(): UiState {
   return {
-    include: 'AGENTS.md',
-    exclude: '',
+    include: "AGENTS.md",
+    exclude: "",
     clipboard: true,
     projectStructure: true,
     promptTail: true,
-    outputFile: '',
+    outputFile: "",
   };
 }
 
@@ -30,11 +30,13 @@ export interface GenerateResult {
 
 /** Messages sent from the extension host to the webview. */
 export type HostToWebviewMessage =
-  | { type: 'init'; state: UiState; hasWorkspace: boolean }
-  | { type: 'runResult'; ok: true; fileCount: number }
-  | { type: 'runResult'; ok: false; error: string };
+  | { type: "init"; state: UiState; hasWorkspace: boolean }
+  | { type: "runResult"; ok: true; fileCount: number }
+  | { type: "runResult"; ok: false; error: string }
+  | { type: "suggestResult"; requestId: number; items: string[] };
 
 /** Messages sent from the webview to the extension host. */
 export type WebviewToHostMessage =
-  | { type: 'stateChanged'; state: UiState }
-  | { type: 'run'; state: UiState };
+  | { type: "stateChanged"; state: UiState }
+  | { type: "run"; state: UiState }
+  | { type: "suggest"; requestId: number; prefix: string };

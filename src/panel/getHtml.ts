@@ -71,6 +71,8 @@ export function getHtml(
     <span id="status" class="status" aria-live="polite"></span>
   </div>
 
+  <div id="suggest" class="suggest" role="listbox" hidden></div>
+
   <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`;

@@ -1,3 +1,3 @@
-- [ ] Give suggestions while typing
-- [ ] Make each item in the textareas look like tags so they are visually separate
+# TODO
+
 - [ ] Items pointing to non-existent files/folders turn red
