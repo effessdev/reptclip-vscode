@@ -33,10 +33,17 @@ export type HostToWebviewMessage =
   | { type: "init"; state: UiState; hasWorkspace: boolean }
   | { type: "runResult"; ok: true; fileCount: number }
   | { type: "runResult"; ok: false; error: string }
-  | { type: "suggestResult"; requestId: number; items: string[] };
+  | { type: "suggestResult"; requestId: number; items: string[] }
+  | {
+      type: "highlightResult";
+      requestId: number;
+      include: boolean[];
+      exclude: boolean[];
+    };
 
 /** Messages sent from the webview to the extension host. */
 export type WebviewToHostMessage =
   | { type: "stateChanged"; state: UiState }
   | { type: "run"; state: UiState }
-  | { type: "suggest"; requestId: number; prefix: string };
+  | { type: "suggest"; requestId: number; prefix: string }
+  | { type: "highlight"; requestId: number; include: string; exclude: string };

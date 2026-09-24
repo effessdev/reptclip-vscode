@@ -5,6 +5,9 @@ import { generateContext } from "../core/generateContext";
 import { copyToClipboard } from "../core/clipboard";
 import { writeOutputFile } from "../core/outputWriter";
 import { collectCandidates, filterCandidates } from "../core/completions";
+import { collectNonIgnoredFiles } from "../core/gitignoreScanner";
+import { tokenize } from "../core/tokenizer";
+import { matchesAnyFile } from "../core/patternMatcher";
 import {
   defaultUiState,
   HostToWebviewMessage,
@@ -16,6 +19,22 @@ export class ReptclipViewProvider implements vscode.WebviewViewProvider {
 
   /** Cached workspace path list used for autocomplete; built on first use. */
   private candidates?: Promise<string[]>;
+
+  /** Cached non-gitignored file list used for token highlighting. */
+  private files?: Promise<string[]>;
+
+  /** Last highlight evaluation, replayed whenever the file list changes. */
+  private lastHighlight?: {
+    requestId: number;
+    include: string;
+    exclude: string;
+  };
+
+  /** Watches the workspace so the cached file list stays fresh. */
+  private fileWatcher?: vscode.FileSystemWatcher;
+
+  /** Debounce timer coalescing bursts of filesystem events. */
+  private fileChangeTimer?: ReturnType<typeof setTimeout>;
 
   constructor(
     private readonly extensionUri: vscode.Uri,
@@ -40,6 +59,61 @@ export class ReptclipViewProvider implements vscode.WebviewViewProvider {
       : defaultUiState();
     post({ type: "init", state, hasWorkspace: !!rootDir });
 
+    // Computes match flags for every include/exclude token against the current
+    // file list. Shared by the live request and the filesystem watcher below.
+    const evaluateHighlight = async (
+      requestId: number,
+      include: string,
+      exclude: string,
+    ) => {
+      if (!rootDir) {
+        return;
+      }
+      this.files ??= collectNonIgnoredFiles(rootDir);
+      const files = await this.files;
+      post({
+        type: "highlightResult",
+        requestId,
+        include: tokenize(include).map((p) => matchesAnyFile(files, p)),
+        exclude: tokenize(exclude).map((p) => matchesAnyFile(files, p)),
+      });
+    };
+
+    // The cached file list goes stale the moment a file is created/deleted,
+    // so watch the workspace, drop the cache, and re-evaluate the patterns
+    // already in the boxes — that is what makes colors update in real time.
+    if (rootDir) {
+      this.fileWatcher?.dispose();
+      const watcher = vscode.workspace.createFileSystemWatcher(
+        new vscode.RelativePattern(vscode.Uri.file(rootDir), "**/*"),
+      );
+      const scheduleRefresh = () => {
+        if (this.fileChangeTimer) {
+          clearTimeout(this.fileChangeTimer);
+        }
+        this.fileChangeTimer = setTimeout(() => {
+          this.files = undefined; // force a fresh scan on the next evaluation
+          if (this.lastHighlight) {
+            void evaluateHighlight(
+              this.lastHighlight.requestId,
+              this.lastHighlight.include,
+              this.lastHighlight.exclude,
+            );
+          }
+        }, 200);
+      };
+      watcher.onDidCreate(scheduleRefresh);
+      watcher.onDidChange(scheduleRefresh);
+      watcher.onDidDelete(scheduleRefresh);
+      this.fileWatcher = watcher;
+      webviewView.onDidDispose(() => {
+        watcher.dispose();
+        if (this.fileWatcher === watcher) {
+          this.fileWatcher = undefined;
+        }
+      });
+    }
+
     webviewView.webview.onDidReceiveMessage(
       async (message: WebviewToHostMessage) => {
         switch (message.type) {
@@ -61,6 +135,23 @@ export class ReptclipViewProvider implements vscode.WebviewViewProvider {
               requestId: message.requestId,
               items: filterCandidates(candidates, message.prefix),
             });
+            return;
+          }
+
+          case "highlight": {
+            if (!rootDir) {
+              return;
+            }
+            this.lastHighlight = {
+              requestId: message.requestId,
+              include: message.include,
+              exclude: message.exclude,
+            };
+            await evaluateHighlight(
+              message.requestId,
+              message.include,
+              message.exclude,
+            );
             return;
           }
 

@@ -47,6 +47,58 @@ input[type="text"]:focus {
   outline-offset: -1px;
 }
 
+/* Token highlighting for the include/exclude boxes. The backdrop mirrors the
+   textarea's text with a colored span per token; the textarea text is made
+   transparent so only the backdrop shows, while the textarea still handles
+   editing/caret/selection. The shared metrics rule keeps the two layers
+   pixel-aligned (a mismatch causes the highlighted text to drift). */
+.pattern-editor {
+  position: relative;
+  background: var(--vscode-input-background);
+  border: 1px solid var(--vscode-input-border, transparent);
+  border-radius: 2px;
+}
+
+.pattern-editor textarea,
+.pattern-backdrop {
+  margin: 0;
+  border: 0;
+  padding: 4px 6px;
+  box-sizing: border-box;
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: var(--vscode-editor-font-size, 1em);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+.pattern-backdrop {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  color: var(--vscode-input-foreground);
+}
+
+.pattern-editor textarea {
+  position: relative;
+  display: block;
+  width: 100%;
+  background: transparent;
+  color: transparent;
+  caret-color: var(--vscode-input-foreground);
+  resize: vertical;
+}
+
+.hl-match {
+  color: var(--vscode-charts-green, #73c991);
+}
+
+.hl-nomatch {
+  color: var(--vscode-charts-yellow, #e5c07b);
+}
+
 /* Section 3: checkboxes flow like normal text instead of stacking as a
    list, to save vertical space in a narrow bottom panel. */
 .checkboxes {

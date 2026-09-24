@@ -14,10 +14,118 @@
     status: document.getElementById("status"),
     warning: document.getElementById("warning"),
     suggest: document.getElementById("suggest"),
+    includeBackdrop: document.getElementById("include-backdrop"),
+    excludeBackdrop: document.getElementById("exclude-backdrop"),
   };
 
   // The include/exclude boxes drive autocomplete; the output box does not.
   const patternFields = [els.include, els.exclude];
+
+  // --- Token highlighting -------------------------------------------------
+  // Textareas can't color individual tokens, so a read-only "backdrop" div
+  // sits behind each one (with transparent textarea text on top) and mirrors
+  // its content with a colored span per pattern token. A token turns green
+  // when it matches at least one file, yellow when it matches none.
+  const editors = new Map([
+    [
+      els.include,
+      { key: "include", input: els.include, backdrop: els.includeBackdrop },
+    ],
+    [
+      els.exclude,
+      { key: "exclude", input: els.exclude, backdrop: els.excludeBackdrop },
+    ],
+  ]);
+
+  const highlightState = {
+    requestId: 0,
+    flags: { include: [], exclude: [] },
+  };
+
+  function escapeHtml(s) {
+    return s.replace(/[&<>]/g, (c) =>
+      c === "&" ? "&amp;" : c === "<" ? "&lt;" : "&gt;",
+    );
+  }
+
+  // Mirrors the extension host's tokenizer: whitespace separates tokens and
+  // quotes let a token contain spaces (quotes stripped from the returned text).
+  // Also records each token's raw [start, end) range so the backdrop can wrap
+  // the exact typed characters (quotes included) in a colored span. Keeping
+  // this in lockstep with the host guarantees flag indices line up.
+  function scanTokens(input) {
+    const tokens = [];
+    let i = 0;
+    let start = -1;
+    let text = "";
+    const flush = (end) => {
+      if (start !== -1 && text.length > 0) {
+        tokens.push({ start, end, text });
+      }
+      start = -1;
+      text = "";
+    };
+    while (i < input.length) {
+      const ch = input[i];
+      if (ch === '"' || ch === "'") {
+        if (start === -1) {
+          start = i;
+        }
+        let j = i + 1;
+        while (j < input.length && input[j] !== ch) {
+          text += input[j];
+          j++;
+        }
+        i = j + 1; // skip the closing quote (or run past EOF)
+        continue;
+      }
+      if (/\s/.test(ch)) {
+        flush(i);
+        i++;
+        continue;
+      }
+      if (start === -1) {
+        start = i;
+      }
+      text += ch;
+      i++;
+    }
+    flush(input.length);
+    return tokens;
+  }
+
+  function renderBackdrop(editor) {
+    const { input, backdrop, key } = editor;
+    if (!backdrop) {
+      return;
+    }
+    const flags = highlightState.flags[key];
+    const tokens = scanTokens(input.value);
+    let html = "";
+    let pos = 0;
+    tokens.forEach((t, idx) => {
+      html += escapeHtml(input.value.slice(pos, t.start));
+      const cls =
+        idx < flags.length ? (flags[idx] ? "hl-match" : "hl-nomatch") : "";
+      const body = escapeHtml(input.value.slice(t.start, t.end));
+      html += cls ? `<span class="${cls}">${body}</span>` : body;
+      pos = t.end;
+    });
+    html += escapeHtml(input.value.slice(pos));
+    backdrop.innerHTML = html;
+    backdrop.scrollTop = input.scrollTop;
+  }
+
+  function requestHighlight() {
+    const requestId = ++highlightState.requestId;
+    vscode.postMessage({
+      type: "highlight",
+      requestId,
+      include: els.include.value,
+      exclude: els.exclude.value,
+    });
+  }
+  const requestHighlightDebounced = debounce(requestHighlight, 200);
 
   const completion = {
     el: null, // textarea the dropdown is attached to
@@ -195,6 +303,8 @@
 
     persist();
     hideSuggestions();
+    renderBackdrop(editors.get(el));
+    requestHighlightDebounced();
 
     // Choosing a folder should immediately offer its contents.
     if (item.endsWith("/")) {
@@ -208,6 +318,8 @@
     el.addEventListener("input", () => {
       persistDebounced();
       requestSuggestionsDebounced(el);
+      renderBackdrop(editors.get(el));
+      requestHighlightDebounced();
     });
 
     // Enter runs the task; Shift+Enter inserts a newline. While the dropdown is
@@ -248,6 +360,14 @@
       // Give a pending mousedown on a row a chance to fire first.
       setTimeout(hideSuggestions, 120);
     });
+
+    // Keep the backdrop aligned when the textarea scrolls internally.
+    el.addEventListener("scroll", () => {
+      const editor = editors.get(el);
+      if (editor && editor.backdrop) {
+        editor.backdrop.scrollTop = el.scrollTop;
+      }
+    });
   });
 
   els.output.addEventListener("input", persistDebounced);
@@ -270,6 +390,19 @@
       els.output.value = s.outputFile ?? "";
       els.warning.hidden = message.hasWorkspace;
       els.runBtn.disabled = !message.hasWorkspace;
+      editors.forEach(renderBackdrop);
+      if (message.hasWorkspace) {
+        requestHighlight();
+      }
+      return;
+    }
+
+    if (message.type === "highlightResult") {
+      if (message.requestId === highlightState.requestId) {
+        highlightState.flags.include = message.include ?? [];
+        highlightState.flags.exclude = message.exclude ?? [];
+        editors.forEach(renderBackdrop);
+      }
       return;
     }
 

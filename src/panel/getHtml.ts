@@ -28,22 +28,28 @@ export function getHtml(
 
   <section class="section">
     <label for="include">Files to include (separated by spaces, glob patterns supported)</label>
-    <textarea
-      id="include"
-      rows="2"
-      spellcheck="false"
-      placeholder='AGENTS.md src/**/*.py "name with space.md"'
-    ></textarea>
+    <div class="pattern-editor">
+      <div id="include-backdrop" class="pattern-backdrop" aria-hidden="true"></div>
+      <textarea
+        id="include"
+        rows="2"
+        spellcheck="false"
+        placeholder='AGENTS.md src/**/*.py "name with space.md"'
+      ></textarea>
+    </div>
   </section>
 
   <section class="section">
     <label for="exclude">Files to exclude from included files</label>
-    <textarea
-      id="exclude"
-      rows="2"
-      spellcheck="false"
-      placeholder="src/secret.py"
-    ></textarea>
+    <div class="pattern-editor">
+      <div id="exclude-backdrop" class="pattern-backdrop" aria-hidden="true"></div>
+      <textarea
+        id="exclude"
+        rows="2"
+        spellcheck="false"
+        placeholder="src/secret.py"
+      ></textarea>
+    </div>
   </section>
 
   <section class="section checkboxes">
