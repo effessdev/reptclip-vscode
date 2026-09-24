@@ -2,7 +2,7 @@
   "name": "reptclip-for-vscode",
   "displayName": "ReptClip for VS Code",
   "description": "Turn your project into clean Markdown context for an LLM chat, right from a panel in VS Code.",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "publisher": "effessdev",
   "private": true,
   "engines": {

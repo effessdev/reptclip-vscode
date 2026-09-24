@@ -11,18 +11,29 @@ Turn your project into clean Markdown context for AI chatbots and copy it **stra
 
 > **Note:** If you are looking for the original ReptClip (the CLI version), here is the link: [ReptClip](https://github.com/effessdev/reptclip)
 
-## Using it
+## How to use
 
 1. Open the bottom panel using `` Ctrl + ` ``
 2. Open the **ReptClip** tab in the panel (Click `...` if you can't see it)
-3. **Files to include**: patterns/paths separated by spaces (e.g. `AGENTS.md src/**/*.py`). Quotes are only needed if a pattern contains a space
-4. **Files to exclude**: same syntax; applied after include patterns
-5. Checkboxes:
+
+## Features
+
+- Get suggestions as you type
+- Syntax highlighting
+- Glob patterns for specifying files
+- Project structure
+
+## Supported configurations
+
+1. **Files to include**: patterns/paths separated by spaces (e.g. `AGENTS.md src/**/*.py`). Quotes are only needed if a pattern contains a space
+2. **Files to exclude**: same syntax; applied after include patterns
+3. Checkboxes:
    1. **Clipboard**: copies the generated Markdown straight to your clipboard
    2. **Project structure**: includes a `# Project structure` section listing every file in the project that isn't excluded by `.gitignore`
    3. **Prompt tail**: appends `# Prompt\n\n` to the end of the output, so your cursor has somewhere to land when you paste into a chat
-   4. **Output file** text box (leave empty to skip writing a file; accepts relative or absolute paths)
-6. Click **Generate**, or press **Enter** while focused in either pattern box (Shift+Enter for a literal newline instead)
+4. **Output file** text box (leave empty to skip writing a file; accepts relative or absolute paths)
+
+## Note
 
 Only files not excluded by `.gitignore` are ever considered, using layered, per-directory `.gitignore` parsing (via the `ignore` package) rather than shelling out to git.
 
