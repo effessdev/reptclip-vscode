@@ -5,7 +5,7 @@
 
 Turn your project into clean Markdown context for AI chatbots and copy it **straight to your clipboard**, automatically respecting `.gitignore` files.
 
-<img width="100%" alt="Preview image" src="https://github.com/user-attachments/assets/ef14392e-3fee-4451-b74c-b8fbd8d2f2a0" />
+<img width="1432" height="940" alt="Preview image" src="https://github.com/user-attachments/assets/ebecbf9e-fd65-421a-96e6-cf0ed383cef4" />
 
 <br>
 
