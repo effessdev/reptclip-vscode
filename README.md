@@ -5,9 +5,7 @@
 
 Turn your project into clean Markdown context for AI chatbots and copy it **straight to your clipboard**, automatically respecting `.gitignore` files.
 
-<img width="1432" height="940" alt="Preview image" src="https://github.com/user-attachments/assets/ebecbf9e-fd65-421a-96e6-cf0ed383cef4" />
-
-<br>
+<img width="100%" alt="Preview image" src="https://github.com/user-attachments/assets/55568e7f-4c68-48bf-830a-d69684e6985c" />
 
 > **Note:** If you are looking for the original ReptClip (the CLI version), here is the link: [ReptClip](https://github.com/effessdev/reptclip)
 
@@ -22,6 +20,10 @@ Turn your project into clean Markdown context for AI chatbots and copy it **stra
 - Syntax highlighting
 - Glob patterns for specifying files
 - Project structure
+
+Suggestions look like this:
+
+<img width="100%" alt="image" src="https://github.com/user-attachments/assets/44fb4f56-5015-4412-8d03-861965d803a0" />
 
 ## Supported configurations
 
@@ -38,3 +40,7 @@ Turn your project into clean Markdown context for AI chatbots and copy it **stra
 Only files not excluded by `.gitignore` are ever considered, using layered, per-directory `.gitignore` parsing (via the `ignore` package) rather than shelling out to git.
 
 Include/exclude patterns and checkbox settings are remembered per project, so you don't have to re-enter them every time you open the panel.
+
+---
+
+Thanks for reading! If you found this useful, please consider dropping a ⭐. It really helps **A LOT!**
