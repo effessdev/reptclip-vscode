@@ -221,7 +221,6 @@ export class ReptclipViewProvider implements vscode.WebviewViewProvider {
               );
             } catch (err) {
               const message_ = err instanceof Error ? err.message : String(err);
-              vscode.window.showErrorMessage(`ReptClip: ${message_}`);
               post({ type: "applyResult", ok: false, error: message_ });
             }
             return;

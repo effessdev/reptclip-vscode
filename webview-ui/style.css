@@ -164,6 +164,8 @@ button#applyBtn {
   cursor: pointer;
   font-family: inherit;
   font-size: inherit;
+  white-space: nowrap;
+  flex: 0 0 auto;
 }
 
 button#runBtn:hover,
