@@ -333,6 +333,9 @@ export async function applyDiffs(
   let modified = 0;
   let created = 0;
   let deleted = 0;
+  // Files whose edits land in an in-memory document buffer; saved below so the
+  // user doesn't have to press Save on each one. Deletions need no save.
+  const touched: vscode.Uri[] = [];
   for (const plan of plans.values()) {
     const uri = vscode.Uri.file(plan.absPath);
     if (plan.deleted) {
@@ -342,11 +345,13 @@ export async function applyDiffs(
       edit.createFile(uri);
       edit.insert(uri, new vscode.Position(0, 0), plan.content);
       created++;
+      touched.push(uri);
     } else {
       const doc = await vscode.workspace.openTextDocument(uri);
       const fullRange = new vscode.Range(0, 0, doc.lineCount, 0);
       edit.replace(doc.uri, fullRange, plan.content);
       modified++;
+      touched.push(uri);
     }
   }
 
@@ -354,5 +359,15 @@ export async function applyDiffs(
   if (!applied) {
     throw new Error("VS Code refused to apply the workspace edit.");
   }
+
+  // `applyEdit` only mutates the documents and leaves them dirty, which is why
+  // files used to appear unsaved. Save each one to persist the change. This
+  // keeps the editor undo stack intact (unlike writing straight to disk), so a
+  // fuzzy or unwanted match can still be reverted with Ctrl+Z.
+  for (const uri of touched) {
+    const doc = await vscode.workspace.openTextDocument(uri);
+    await doc.save();
+  }
+
   return { modified, created, deleted, fuzzy };
 }
