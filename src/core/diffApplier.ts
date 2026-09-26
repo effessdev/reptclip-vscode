@@ -27,6 +27,8 @@ export interface ApplySummary {
   modified: number;
   created: number;
   deleted: number;
+  /** Blocks whose SEARCH matched only via the whitespace-lenient fallbacks. */
+  fuzzy: number;
 }
 
 const SEARCH_MARKER = "<<<<<<< SEARCH";
@@ -131,37 +133,113 @@ async function readFileIfExists(absPath: string): Promise<string | undefined> {
   }
 }
 
+const escapeRegExp = (s: string): string =>
+  s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 /**
- * Locates `search` in `content`, tolerating trailing-newline drift between
- * what the model emitted and the file on disk. Refuses ambiguous matches.
+ * Builds progressively more forgiving regex patterns from the SEARCH lines,
+ * mirroring the liberal matching ladders used by agent edit tools:
+ *   1. ignore trailing whitespace on each line
+ *   2. ...plus flexible leading indentation
+ *   3. ...plus any whitespace run inside a line counts as equivalent
+ *      (token-level matching, so tab-vs-space and re-indented code pass)
+ */
+function lenientPatterns(lines: string[]): string[] {
+  const trailing = "[ \\t]*";
+  const esc = escapeRegExp;
+  const levels = [
+    (l: string) => esc(l) + trailing,
+    (l: string) => `[ \\t]*${esc(l.replace(/^[ \t]+/, ""))}${trailing}`,
+    (l: string) => {
+      const tokens = l.trim().split(/\s+/).filter(Boolean).map(esc);
+      return tokens.length
+        ? `[ \\t]*${tokens.join("[ \\t]+")}${trailing}`
+        : "[ \\t]*";
+    },
+  ];
+  return levels.map((perLine) => lines.map(perLine).join("\\r?\\n"));
+}
+
+/**
+ * Locates `search` in `content`, refusing ambiguous matches. Tolerant of:
+ *   - Trailing newlines (a block need not end exactly where the file does).
+ *   - Line endings: clipboard text is LF after parsing, while files checked
+ *     out on Windows are often CRLF. The REPLACE text is converted to
+ *     whichever style matched, keeping the file's convention intact.
+ *   - Whitespace drift, via the lenient ladder above (reported as "fuzzy"
+ *     so callers can surface it for review).
  */
 function findMatch(
   content: string,
   search: string,
+  replace: string,
   file: string,
-): { index: number; text: string } {
-  const variants = [
-    search,
-    search.replace(/\n+$/, ""),
-    search.endsWith("\n") ? search : search + "\n",
+): { index: number; text: string; replace: string; fuzzy: boolean } {
+  const normalizeReplace = (matched: string, value: string): string => {
+    if (matched.includes("\r\n") && !value.includes("\r\n")) {
+      return value.replace(/\n/g, "\r\n");
+    }
+    if (!matched.includes("\r\n") && value.includes("\r\n")) {
+      return value.replace(/\r\n/g, "\n");
+    }
+    return value;
+  };
+
+  // Pass 0: byte-for-byte exact, in every line-ending combination.
+  const lf = search.replace(/\r\n/g, "\n");
+  const bases = [
+    search, // as parsed (also covers search copied with CRLF)
+    lf, // normalized to LF for CRLF-vs-LF comparison
+    lf.replace(/\n/g, "\r\n"), // converted to CRLF for CRLF files
   ];
-  let lastCount = 0;
-  for (const variant of variants) {
-    if (variant === "") {
-      continue;
+
+  let ambiguous = false;
+  for (const base of bases) {
+    for (const variant of [base, base.replace(/\r?\n+$/, "")]) {
+      if (variant === "") {
+        continue;
+      }
+      const count = content.split(variant).length - 1;
+      if (count === 1) {
+        return {
+          index: content.indexOf(variant),
+          text: variant,
+          replace: normalizeReplace(variant, replace),
+          fuzzy: false,
+        };
+      }
+      if (count > 1) {
+        ambiguous = true;
+      }
     }
-    const count = content.split(variant).length - 1;
-    if (count === 1) {
-      return { index: content.indexOf(variant), text: variant };
-    }
-    lastCount = count;
   }
-  if (lastCount > 1) {
+
+  // Passes 1-3: whitespace-lenient fallbacks, strictest first.
+  const body = search.replace(/\r?\n+$/, "");
+  if (body !== "") {
+    for (const pattern of lenientPatterns(body.split(/\r?\n/))) {
+      const matches = [...content.matchAll(new RegExp(pattern, "g"))];
+      if (matches.length === 1) {
+        const match = matches[0];
+        return {
+          index: match.index,
+          text: match[0],
+          replace: normalizeReplace(match[0], replace),
+          fuzzy: true,
+        };
+      }
+      if (matches.length > 1) {
+        ambiguous = true;
+      }
+    }
+  }
+
+  if (ambiguous) {
     throw new Error(
       `SEARCH block for ${file} matches multiple locations — add more context.`,
     );
   }
-  throw new Error(`No exact match for the SEARCH block in ${file}.`);
+  throw new Error(`No match found for the SEARCH block in ${file}.`);
 }
 
 interface FilePlan {
@@ -183,6 +261,7 @@ export async function applyDiffs(
   // Simulate every block, in order, per file so all validation happens
   // before anything touches disk.
   const plans = new Map<string, FilePlan>();
+  let fuzzy = 0;
   for (const block of blocks) {
     const absPath = resolveFile(rootDir, block.file);
     let plan = plans.get(absPath);
@@ -211,10 +290,18 @@ export async function applyDiffs(
       continue;
     }
 
-    const { index, text } = findMatch(plan.content, block.search, block.file);
+    const {
+      index,
+      text,
+      replace,
+      fuzzy: lenient,
+    } = findMatch(plan.content, block.search, block.replace, block.file);
+    if (lenient) {
+      fuzzy++;
+    }
     plan.content =
       plan.content.slice(0, index) +
-      block.replace +
+      replace +
       plan.content.slice(index + text.length);
 
     // Empty REPLACE that wipes the whole file deletes it (format rule 4).
@@ -248,5 +335,5 @@ export async function applyDiffs(
   if (!applied) {
     throw new Error("VS Code refused to apply the workspace edit.");
   }
-  return { modified, created, deleted };
+  return { modified, created, deleted, fuzzy };
 }

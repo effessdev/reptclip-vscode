@@ -436,7 +436,7 @@
 
     if (message.type === "applyResult") {
       els.status.textContent = message.ok
-        ? `Applied: ${message.modified} modified, ${message.created} created, ${message.deleted} deleted.`
+        ? `Applied: ${message.modified} modified, ${message.created} created, ${message.deleted} deleted${message.fuzzy ? `, ${message.fuzzy} fuzzy` : ""}.`
         : `Error: ${message.error}`;
     }
   });

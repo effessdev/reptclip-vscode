@@ -216,7 +216,7 @@ export class ReptclipViewProvider implements vscode.WebviewViewProvider {
 
               post({ type: "applyResult", ok: true, ...summary });
               vscode.window.setStatusBarMessage(
-                `ReptClip: applied diffs — ${summary.modified} modified, ${summary.created} created, ${summary.deleted} deleted`,
+                `ReptClip: applied diffs — ${summary.modified} modified, ${summary.created} created, ${summary.deleted} deleted${summary.fuzzy ? ` (${summary.fuzzy} fuzzy-matched — review the changes)` : ""}`,
                 4000,
               );
             } catch (err) {

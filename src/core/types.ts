@@ -41,6 +41,7 @@ export type HostToWebviewMessage =
       modified: number;
       created: number;
       deleted: number;
+      fuzzy: number;
     }
   | { type: "applyResult"; ok: false; error: string }
   | { type: "suggestResult"; requestId: number; items: string[] }
