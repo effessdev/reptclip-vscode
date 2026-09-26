@@ -16,16 +16,27 @@ export function selectFiles(
     return [];
   }
 
-  let selected = micromatch(allFiles, includePatterns, {
-    dot: true,
-    nocase: false,
-  });
+  const seen = new Set<string>();
+  const selected: string[] = [];
+
+  for (const pattern of includePatterns) {
+    const matches = micromatch(allFiles, [pattern], {
+      dot: true,
+      nocase: false,
+    });
+    for (const file of matches.sort()) {
+      if (!seen.has(file)) {
+        seen.add(file);
+        selected.push(file);
+      }
+    }
+  }
 
   if (excludePatterns.length > 0) {
     const excluded = new Set(
       micromatch(allFiles, excludePatterns, { dot: true, nocase: false }),
     );
-    selected = selected.filter((f) => !excluded.has(f));
+    return selected.filter((f) => !excluded.has(f));
   }
 
   return selected;
