@@ -12,8 +12,8 @@ Paste your project as clean Markdown context into a free Chatbot, and apply the 
 ## Workflow
 
 1. Specify the files you want to include in the context and press "Enter" to copy it into your clipboard
-3. Paste it into a free chatbot along with your prompt, and let it generate the diffs
-4. Copy the code block containing the diffs, and click "Apply Diffs"
+2. Paste it into a free chatbot along with your prompt, and let it generate the diffs
+3. Copy the code block containing the diffs, and click "Apply Diffs"
 
 The extension will automatically read the diffs from your clipboard and update the files accordingly!
 
@@ -46,6 +46,12 @@ Suggestions look like this:
    3. **Prompt tail**: appends `# Prompt\n\n` to the end of the output, so your cursor has somewhere to land when you paste into a chat.
    4. **Diff format**: adds instructions regarding how to generate the diffs.
 4. **Output file** text box (leave empty to skip writing a file; accepts relative or absolute paths).
+
+## Edge cases
+
+- Files to include `**/*.py main.py`: All Python files are included, but `main.py` comes last.
+- Files to include `**/*.py src/**/*.py`: All Python files are included, but the Python files in `src` come last.
+- Files to include `**/*.py`, files to exclude `secret.py`: All Python files are included, except `secret.py`.
 
 ## Example context
 
@@ -160,7 +166,7 @@ Do not make mistakes.
 
 Only files not excluded by `.gitignore` are ever considered, using layered, per-directory `.gitignore` parsing (via the `ignore` package) rather than shelling out to git.
 
-Include/exclude patterns and checkbox settings are remembered per project, so you don't have to re-enter them every time you open the panel.
+**Include/exclude patterns and checkbox settings are remembered per project**, so you don't have to re-enter them every time you open the panel.
 
 ---
 
