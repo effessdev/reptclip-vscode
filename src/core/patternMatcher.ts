@@ -6,6 +6,11 @@ import micromatch from "micromatch";
  * in the generated Markdown. Include patterns are applied first, then
  * exclude patterns narrow that result — matching the original CLI's
  * documented precedence.
+ *
+ * A file "belongs" to the *last* include pattern that matches it, so later
+ * (more specific) patterns push their files toward the end of the result —
+ * closer to the Prompt section. Within each pattern group, matches are
+ * sorted alphabetically for determinism.
  */
 export function selectFiles(
   allFiles: string[],
@@ -16,21 +21,25 @@ export function selectFiles(
     return [];
   }
 
-  const seen = new Set<string>();
-  const selected: string[] = [];
+  const matchesPerPattern = includePatterns.map((pattern) =>
+    micromatch(allFiles, [pattern], { dot: true, nocase: false }).sort(),
+  );
 
-  for (const pattern of includePatterns) {
-    const matches = micromatch(allFiles, [pattern], {
-      dot: true,
-      nocase: false,
-    });
-    for (const file of matches.sort()) {
-      if (!seen.has(file)) {
-        seen.add(file);
+  const lastPatternIndex = new Map<string, number>();
+  matchesPerPattern.forEach((matches, index) => {
+    for (const file of matches) {
+      lastPatternIndex.set(file, index);
+    }
+  });
+
+  const selected: string[] = [];
+  matchesPerPattern.forEach((matches, index) => {
+    for (const file of matches) {
+      if (lastPatternIndex.get(file) === index) {
         selected.push(file);
       }
     }
-  }
+  });
 
   if (excludePatterns.length > 0) {
     const excluded = new Set(

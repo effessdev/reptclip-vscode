@@ -41,6 +41,12 @@ Only files not excluded by `.gitignore` are ever considered, using layered, per-
 
 Include/exclude patterns and checkbox settings are remembered per project, so you don't have to re-enter them every time you open the panel.
 
+## Unreleased
+
+- Preserve the order in which items are listed in "Files to include"
+- Redundant items come last (e.g., `**/*.py main.py` includes all Python files, but put `main.py` last (close to the prompt))
+
 ---
 
 Thanks for reading! If you found this useful, please consider dropping a ⭐. It really helps **A LOT!**
+
