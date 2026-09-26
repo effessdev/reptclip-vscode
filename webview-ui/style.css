@@ -1,9 +1,27 @@
+html,
+body {
+  height: 100%;
+}
+
 body {
   font-family: var(--vscode-font-family);
   font-size: var(--vscode-font-size);
   color: var(--vscode-foreground);
   padding: 10px 12px;
   margin: 0;
+  /* Fixed-height flex column: the input sections scroll inside `.content`
+     while the actions row (Generate button) stays pinned to the bottom, so
+     it remains visible even in a short panel. */
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.content {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .warning {
@@ -127,9 +145,13 @@ input[type="text"]:focus {
 
 .actions {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
   gap: 10px;
-  margin-top: 4px;
+  padding-top: 8px;
+  margin-top: 0;
+  border-top: 1px solid
+    var(--vscode-panel-border, var(--vscode-input-border, transparent));
 }
 
 button#runBtn {

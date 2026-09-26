@@ -1,2 +1,3 @@
 - [ ] Add a way to put certain files near the end.
 - [ ] Add a way to exclude certain files from the project structure.
+- [ ] Apply diffs from clipboard in a single click

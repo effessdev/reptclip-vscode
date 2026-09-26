@@ -24,53 +24,55 @@ export function getHtml(
   <title>ReptClip</title>
 </head>
 <body>
-  <div id="warning" class="warning" hidden>Open a folder to use ReptClip.</div>
+  <div class="content">
+    <div id="warning" class="warning" hidden>Open a folder to use ReptClip.</div>
 
-  <section class="section">
-    <label for="include">Files to include (separated by spaces, glob patterns supported)</label>
-    <div class="pattern-editor">
-      <div id="include-backdrop" class="pattern-backdrop" aria-hidden="true"></div>
-      <textarea
-        id="include"
-        rows="2"
-        spellcheck="false"
-        placeholder='AGENTS.md src/**/*.py "name with space.md"'
-      ></textarea>
-    </div>
-  </section>
+    <section class="section">
+      <label for="include">Files to include (separated by spaces, glob patterns supported)</label>
+      <div class="pattern-editor">
+        <div id="include-backdrop" class="pattern-backdrop" aria-hidden="true"></div>
+        <textarea
+          id="include"
+          rows="2"
+          spellcheck="false"
+          placeholder='AGENTS.md src/**/*.py "name with space.md"'
+        ></textarea>
+      </div>
+    </section>
 
-  <section class="section">
-    <label for="exclude">Files to exclude from included files</label>
-    <div class="pattern-editor">
-      <div id="exclude-backdrop" class="pattern-backdrop" aria-hidden="true"></div>
-      <textarea
-        id="exclude"
-        rows="2"
-        spellcheck="false"
-        placeholder="src/secret.py"
-      ></textarea>
-    </div>
-  </section>
+    <section class="section">
+      <label for="exclude">Files to exclude from included files</label>
+      <div class="pattern-editor">
+        <div id="exclude-backdrop" class="pattern-backdrop" aria-hidden="true"></div>
+        <textarea
+          id="exclude"
+          rows="2"
+          spellcheck="false"
+          placeholder="src/secret.py"
+        ></textarea>
+      </div>
+    </section>
 
-  <section class="section checkboxes">
-    <label>Click Generate or press enter inside an input to copy</label>
-    <label class="checkbox">
-      <input type="checkbox" id="clipboard" />
-      <span>Clipboard</span>
-    </label>
-    <label class="checkbox">
-      <input type="checkbox" id="structure" />
-      <span>Project structure</span>
-    </label>
-    <label class="checkbox">
-      <input type="checkbox" id="promptTail" />
-      <span>Prompt tail</span>
-    </label>
-    <label class="output-file">
-      <span>Output file</span>
-      <input type="text" id="output" spellcheck="false" placeholder="out.md" />
-    </label>
-  </section>
+    <section class="section checkboxes">
+      <label>Click Generate or press enter inside an input to copy</label>
+      <label class="checkbox">
+        <input type="checkbox" id="clipboard" />
+        <span>Copy to clipboard</span>
+      </label>
+      <label class="checkbox">
+        <input type="checkbox" id="structure" />
+        <span>Project structure</span>
+      </label>
+      <label class="checkbox">
+        <input type="checkbox" id="promptTail" />
+        <span>Prompt tail</span>
+      </label>
+      <label class="output-file">
+        <span>Output file</span>
+        <input type="text" id="output" spellcheck="false" placeholder="out.md" />
+      </label>
+    </section>
+  </div>
 
   <div class="actions">
     <button id="runBtn" type="button">Generate</button>
