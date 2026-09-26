@@ -8,6 +8,7 @@
     exclude: document.getElementById("exclude"),
     clipboard: document.getElementById("clipboard"),
     structure: document.getElementById("structure"),
+    diffFormat: document.getElementById("diffFormat"),
     promptTail: document.getElementById("promptTail"),
     output: document.getElementById("output"),
     runBtn: document.getElementById("runBtn"),
@@ -141,6 +142,7 @@
       exclude: els.exclude.value,
       clipboard: els.clipboard.checked,
       projectStructure: els.structure.checked,
+      diffFormat: els.diffFormat.checked,
       promptTail: els.promptTail.checked,
       outputFile: els.output.value,
     };
@@ -371,9 +373,11 @@
   });
 
   els.output.addEventListener("input", persistDebounced);
-  [els.clipboard, els.structure, els.promptTail].forEach((el) => {
-    el.addEventListener("change", persist);
-  });
+  [els.clipboard, els.structure, els.diffFormat, els.promptTail].forEach(
+    (el) => {
+      el.addEventListener("change", persist);
+    },
+  );
 
   els.runBtn.addEventListener("click", run);
 
@@ -386,6 +390,7 @@
       els.exclude.value = s.exclude ?? "";
       els.clipboard.checked = !!s.clipboard;
       els.structure.checked = !!s.projectStructure;
+      els.diffFormat.checked = !!s.diffFormat;
       els.promptTail.checked = !!s.promptTail;
       els.output.value = s.outputFile ?? "";
       els.warning.hidden = message.hasWorkspace;

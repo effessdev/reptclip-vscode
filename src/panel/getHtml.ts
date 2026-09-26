@@ -64,6 +64,10 @@ export function getHtml(
         <span>Project structure</span>
       </label>
       <label class="checkbox">
+        <input type="checkbox" id="diffFormat" />
+        <span>Diff format</span>
+      </label>
+      <label class="checkbox">
         <input type="checkbox" id="promptTail" />
         <span>Prompt tail</span>
       </label>

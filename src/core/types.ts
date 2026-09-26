@@ -7,6 +7,7 @@ export interface UiState {
   exclude: string;
   clipboard: boolean;
   projectStructure: boolean;
+  diffFormat: boolean;
   promptTail: boolean;
   outputFile: string;
 }
@@ -17,6 +18,7 @@ export function defaultUiState(): UiState {
     exclude: "",
     clipboard: true,
     projectStructure: true,
+    diffFormat: true,
     promptTail: true,
     outputFile: "",
   };
