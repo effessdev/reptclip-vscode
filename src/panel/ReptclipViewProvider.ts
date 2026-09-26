@@ -1,12 +1,6 @@
 import * as vscode from "vscode";
 import { getHtml } from "./getHtml";
-import {
-  loadProjectState,
-  saveProjectState,
-  loadLastAppliedDiff,
-  saveLastAppliedDiff,
-  clearLastAppliedDiff,
-} from "../core/projectStorage";
+import { loadProjectState, saveProjectState } from "../core/projectStorage";
 import { generateContext } from "../core/generateContext";
 import { copyToClipboard, readClipboard } from "../core/clipboard";
 import {
@@ -49,9 +43,11 @@ export class ReptclipViewProvider implements vscode.WebviewViewProvider {
   private fileChangeTimer?: ReturnType<typeof setTimeout>;
 
   /**
-   * Pre-apply snapshots keyed by normalized workspace root. In-memory only:
-   * closing the VS Code window clears it, which is intentional for the v1
-   * basic version. Restoring writes back the exact bytes captured here.
+   * Pre-apply snapshots keyed by normalized workspace root. Each entry also
+   * carries the fingerprint of the diff that produced it, which doubles as
+   * the "already applied" guard — the check lives in memory alongside the
+   * snapshot it protects, so both die together on window reload and neither
+   * can get stuck referencing the other.
    */
   private pendingUndo = new Map<string, UndoSnapshot>();
 
@@ -238,7 +234,11 @@ export class ReptclipViewProvider implements vscode.WebviewViewProvider {
 
               const fingerprint = fingerprintDiff(clipboardText);
               const key = normalizeRoot(rootDir);
-              if (loadLastAppliedDiff(this.context, rootDir) === fingerprint) {
+              // The "already applied" check is intentionally in-memory: it
+              // shares fate with the restore snapshot, so a window reload
+              // clears both together and the user isn't stuck seeing
+              // "already applied" with no way to restore.
+              if (this.pendingUndo.get(key)?.fingerprint === fingerprint) {
                 post({
                   type: "applyResult",
                   ok: true,
@@ -247,7 +247,7 @@ export class ReptclipViewProvider implements vscode.WebviewViewProvider {
                   deleted: 0,
                   fuzzy: 0,
                   alreadyApplied: true,
-                  canRevert: this.pendingUndo.has(key),
+                  canRevert: true,
                 });
                 vscode.window.setStatusBarMessage(
                   "ReptClip: this diff was already applied — skipping.",
@@ -260,7 +260,6 @@ export class ReptclipViewProvider implements vscode.WebviewViewProvider {
                 rootDir,
                 clipboardText,
               );
-              await saveLastAppliedDiff(this.context, rootDir, fingerprint);
               this.pendingUndo.set(key, { fingerprint, files: undo });
 
               post({
@@ -302,11 +301,15 @@ export class ReptclipViewProvider implements vscode.WebviewViewProvider {
             // Explicit confirmation: this is a state restore, not an undo, so
             // any edits made after apply will be overwritten silently. Warn
             // the user with a file list so they can bail if they weren't
-            // expecting it.
-            const fileNames = snapshot.files.map((f) => f.relPath).join(", ");
+            // expecting it. Truncate long lists so the modal stays readable.
+            const shown = snapshot.files.slice(0, 5).map((f) => f.relPath);
+            const hidden = snapshot.files.length - shown.length;
+            const fileList =
+              shown.join(", ") + (hidden > 0 ? ` and ${hidden} more` : "");
             const choice = await vscode.window.showWarningMessage(
               `Restore ${snapshot.files.length} file(s) to their state before the last diff? ` +
-                `Any edits made after applying the diff will be lost. Files: ${fileNames}`,
+                `Any edits made after applying the diff — including unsaved changes in open editors — will be lost.\n\n` +
+                `Files: ${fileList}`,
               { modal: true },
               "Restore",
             );
@@ -324,8 +327,9 @@ export class ReptclipViewProvider implements vscode.WebviewViewProvider {
 
             try {
               const result = await restoreSnapshot(snapshot.files);
+              // Deleting the entry clears both the restore snapshot and the
+              // in-memory "already applied" fingerprint it carries.
               this.pendingUndo.delete(key);
-              await clearLastAppliedDiff(this.context, rootDir);
               post({ type: "revertResult", ok: true, ...result });
               vscode.window.setStatusBarMessage(
                 `ReptClip: restored — ${result.restored} file(s) written back, ${result.recreated} recreated, ${result.removed} removed. You can apply the same diff again.`,
