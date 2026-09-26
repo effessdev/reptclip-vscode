@@ -162,15 +162,20 @@
   }
   const persistDebounced = debounce(persist, 300);
 
+  function setStatus(text, isError = false) {
+    els.status.textContent = text;
+    els.status.classList.toggle("status--error", isError);
+  }
+
   function run() {
-    els.status.textContent = "Working…";
+    setStatus("Working…");
     vscode.postMessage({ type: "run", state: currentState() });
   }
 
   // The host reads the clipboard (the webview sandbox has no clipboard
   // access) and applies the Search/Replace blocks it finds there.
   function applyFromClipboard() {
-    els.status.textContent = "Applying…";
+    setStatus("Applying…");
     vscode.postMessage({ type: "applyDiffs" });
   }
 
@@ -429,17 +434,26 @@
     }
 
     if (message.type === "runResult") {
-      els.status.textContent = message.ok
-        ? `Done: ${message.fileCount} file(s) included.`
-        : `Error: ${message.error}`;
+      if (message.ok) {
+        setStatus(`Done: ${message.fileCount} file(s) included.`);
+      } else {
+        setStatus(`Error: ${message.error}`, true);
+      }
     }
 
     if (message.type === "applyResult") {
-      els.status.textContent = message.ok
-        ? message.alreadyApplied
-          ? "Already applied — this diff was applied before."
-          : `Applied: ${message.modified} modified, ${message.created} created, ${message.deleted} deleted${message.fuzzy ? `, ${message.fuzzy} fuzzy` : ""}.`
-        : `Error: ${message.error}`;
+      if (message.ok) {
+        setStatus(
+          message.alreadyApplied
+            ? "Already applied — this diff was applied before."
+            : `Applied: ${message.modified} modified, ${message.created} created, ${message.deleted} deleted${message.fuzzy ? `, ${message.fuzzy} fuzzy` : ""}.`,
+        );
+      } else {
+        setStatus(
+          `Not applied — no files were changed. ${message.error}`,
+          true,
+        );
+      }
     }
   });
 })();

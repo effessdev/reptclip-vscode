@@ -194,6 +194,11 @@ button#applyBtn:disabled {
   opacity: 0.85;
 }
 
+.status--error {
+  color: var(--vscode-errorForeground);
+  opacity: 1;
+}
+
 /* Autocomplete dropdown for the include/exclude boxes. Absolutely positioned
    relative to the document; main.js anchors it under the active textarea. */
 .suggest {
