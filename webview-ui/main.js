@@ -12,6 +12,7 @@
     promptTail: document.getElementById("promptTail"),
     output: document.getElementById("output"),
     runBtn: document.getElementById("runBtn"),
+    applyBtn: document.getElementById("applyBtn"),
     status: document.getElementById("status"),
     warning: document.getElementById("warning"),
     suggest: document.getElementById("suggest"),
@@ -164,6 +165,13 @@
   function run() {
     els.status.textContent = "Working…";
     vscode.postMessage({ type: "run", state: currentState() });
+  }
+
+  // The host reads the clipboard (the webview sandbox has no clipboard
+  // access) and applies the Search/Replace blocks it finds there.
+  function applyFromClipboard() {
+    els.status.textContent = "Applying…";
+    vscode.postMessage({ type: "applyDiffs" });
   }
 
   // --- Autocomplete -------------------------------------------------------
@@ -380,6 +388,7 @@
   );
 
   els.runBtn.addEventListener("click", run);
+  els.applyBtn.addEventListener("click", applyFromClipboard);
 
   window.addEventListener("message", (event) => {
     const message = event.data;
@@ -395,6 +404,7 @@
       els.output.value = s.outputFile ?? "";
       els.warning.hidden = message.hasWorkspace;
       els.runBtn.disabled = !message.hasWorkspace;
+      els.applyBtn.disabled = !message.hasWorkspace;
       editors.forEach(renderBackdrop);
       if (message.hasWorkspace) {
         requestHighlight();
@@ -421,6 +431,12 @@
     if (message.type === "runResult") {
       els.status.textContent = message.ok
         ? `Done: ${message.fileCount} file(s) included.`
+        : `Error: ${message.error}`;
+    }
+
+    if (message.type === "applyResult") {
+      els.status.textContent = message.ok
+        ? `Applied: ${message.modified} modified, ${message.created} created, ${message.deleted} deleted.`
         : `Error: ${message.error}`;
     }
   });

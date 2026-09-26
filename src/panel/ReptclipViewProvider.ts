@@ -2,7 +2,8 @@ import * as vscode from "vscode";
 import { getHtml } from "./getHtml";
 import { loadProjectState, saveProjectState } from "../core/projectStorage";
 import { generateContext } from "../core/generateContext";
-import { copyToClipboard } from "../core/clipboard";
+import { copyToClipboard, readClipboard } from "../core/clipboard";
+import { applyDiffs } from "../core/diffApplier";
 import { writeOutputFile } from "../core/outputWriter";
 import { collectCandidates, filterCandidates } from "../core/completions";
 import { collectNonIgnoredFiles } from "../core/gitignoreScanner";
@@ -192,6 +193,36 @@ export class ReptclipViewProvider implements vscode.WebviewViewProvider {
               const message_ = err instanceof Error ? err.message : String(err);
               vscode.window.showErrorMessage(`ReptClip failed: ${message_}`);
               post({ type: "runResult", ok: false, error: message_ });
+            }
+            return;
+          }
+
+          case "applyDiffs": {
+            if (!rootDir) {
+              vscode.window.showWarningMessage(
+                "ReptClip: open a folder first.",
+              );
+              return;
+            }
+
+            try {
+              const clipboardText = await readClipboard();
+              if (!clipboardText.trim()) {
+                throw new Error(
+                  "Clipboard is empty — copy a Search/Replace diff first.",
+                );
+              }
+              const summary = await applyDiffs(rootDir, clipboardText);
+
+              post({ type: "applyResult", ok: true, ...summary });
+              vscode.window.setStatusBarMessage(
+                `ReptClip: applied diffs — ${summary.modified} modified, ${summary.created} created, ${summary.deleted} deleted`,
+                4000,
+              );
+            } catch (err) {
+              const message_ = err instanceof Error ? err.message : String(err);
+              vscode.window.showErrorMessage(`ReptClip: ${message_}`);
+              post({ type: "applyResult", ok: false, error: message_ });
             }
             return;
           }
