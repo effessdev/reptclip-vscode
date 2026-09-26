@@ -2,16 +2,18 @@ import * as vscode from "vscode";
 import { UiState, defaultUiState } from "./types";
 
 const STORAGE_KEY = "reptclip.projectStates";
-const LAST_APPLIED_KEY = "reptclip.lastAppliedDiff";
 
 type ProjectStateMap = Record<string, UiState>;
-type LastAppliedMap = Record<string, string>;
 
 /**
  * State is keyed by the project's absolute filesystem path (not VS Code's
  * workspace identity), so it stays correct regardless of how a folder is
  * opened — standalone, as part of a multi-root workspace, etc. — and
  * persists across sessions via globalState.
+ *
+ * The "already applied" fingerprint check for diffs used to live here as
+ * well; it's now tracked in memory by the panel provider so it dies with
+ * the window alongside the restore snapshot it guards against double-apply.
  */
 export function loadProjectState(
   context: vscode.ExtensionContext,
@@ -30,28 +32,6 @@ export async function saveProjectState(
   const all = context.globalState.get<ProjectStateMap>(STORAGE_KEY, {});
   all[normalize(rootDir)] = state;
   await context.globalState.update(STORAGE_KEY, all);
-}
-
-/**
- * Fingerprint of the most recently applied diff, keyed per project. Used to
- * detect (and skip) re-applying the exact same clipboard diff twice.
- */
-export function loadLastAppliedDiff(
-  context: vscode.ExtensionContext,
-  rootDir: string,
-): string | undefined {
-  const all = context.globalState.get<LastAppliedMap>(LAST_APPLIED_KEY, {});
-  return all[normalize(rootDir)];
-}
-
-export async function saveLastAppliedDiff(
-  context: vscode.ExtensionContext,
-  rootDir: string,
-  fingerprint: string,
-): Promise<void> {
-  const all = context.globalState.get<LastAppliedMap>(LAST_APPLIED_KEY, {});
-  all[normalize(rootDir)] = fingerprint;
-  await context.globalState.update(LAST_APPLIED_KEY, all);
 }
 
 function normalize(rootDir: string): string {
