@@ -54,6 +54,22 @@ export async function saveLastAppliedDiff(
   await context.globalState.update(LAST_APPLIED_KEY, all);
 }
 
+/**
+ * Forget the "already applied" marker for this project. Called by Restore so
+ * that the same clipboard diff can be applied again immediately afterwards.
+ */
+export async function clearLastAppliedDiff(
+  context: vscode.ExtensionContext,
+  rootDir: string,
+): Promise<void> {
+  const all = context.globalState.get<LastAppliedMap>(LAST_APPLIED_KEY, {});
+  if (all[normalize(rootDir)] === undefined) {
+    return;
+  }
+  delete all[normalize(rootDir)];
+  await context.globalState.update(LAST_APPLIED_KEY, all);
+}
+
 function normalize(rootDir: string): string {
   // Keep a stable key regardless of trailing slash differences.
   return rootDir.replace(/[\\/]+$/, "");

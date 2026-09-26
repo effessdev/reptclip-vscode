@@ -13,6 +13,7 @@
     output: document.getElementById("output"),
     runBtn: document.getElementById("runBtn"),
     applyBtn: document.getElementById("applyBtn"),
+    revertBtn: document.getElementById("revertBtn"),
     status: document.getElementById("status"),
     warning: document.getElementById("warning"),
     suggest: document.getElementById("suggest"),
@@ -177,6 +178,14 @@
   function applyFromClipboard() {
     setStatus("Applying…");
     vscode.postMessage({ type: "applyDiffs" });
+  }
+
+  // Restore every file touched by the last Apply back to the bytes it had
+  // before Apply ran. The host shows a confirmation modal — this just kicks
+  // off the request and reflects the outcome.
+  function restoreLastSnapshot() {
+    setStatus("Restoring…");
+    vscode.postMessage({ type: "revertDiff" });
   }
 
   // --- Autocomplete -------------------------------------------------------
@@ -394,6 +403,7 @@
 
   els.runBtn.addEventListener("click", run);
   els.applyBtn.addEventListener("click", applyFromClipboard);
+  els.revertBtn.addEventListener("click", restoreLastSnapshot);
 
   window.addEventListener("message", (event) => {
     const message = event.data;
@@ -410,6 +420,7 @@
       els.warning.hidden = message.hasWorkspace;
       els.runBtn.disabled = !message.hasWorkspace;
       els.applyBtn.disabled = !message.hasWorkspace;
+      els.revertBtn.disabled = !message.hasWorkspace || !message.canRevert;
       editors.forEach(renderBackdrop);
       if (message.hasWorkspace) {
         requestHighlight();
@@ -442,6 +453,9 @@
     }
 
     if (message.type === "applyResult") {
+      if (typeof message.canRevert === "boolean") {
+        els.revertBtn.disabled = !message.canRevert;
+      }
       if (message.ok) {
         setStatus(
           message.alreadyApplied
@@ -451,6 +465,24 @@
       } else {
         setStatus(
           `Not applied — no files were changed. ${message.error}`,
+          true,
+        );
+      }
+    }
+
+    if (message.type === "revertResult") {
+      if (message.ok) {
+        if (message.cancelled) {
+          setStatus("Restore cancelled.");
+        } else {
+          els.revertBtn.disabled = true;
+          setStatus(
+            `Restored: ${message.restored} rewritten, ${message.recreated} recreated, ${message.removed} removed. You can apply the same diff again.`,
+          );
+        }
+      } else {
+        setStatus(
+          `Not restored — no files were changed. ${message.error}`,
           true,
         );
       }

@@ -81,6 +81,7 @@ export function getHtml(
   <div class="actions">
     <button id="runBtn" type="button">Generate</button>
     <button id="applyBtn" type="button" title="Read Search/Replace blocks from the clipboard and apply them to the workspace">Apply Diffs</button>
+    <button id="revertBtn" type="button" title="Rewrite every file the last diff touched back to the exact bytes it had before Apply. Any edits made since Apply will be lost." disabled>Restore</button>
     <span id="status" class="status" aria-live="polite"></span>
   </div>
 

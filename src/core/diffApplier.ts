@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import * as fs from "fs/promises";
 import * as path from "path";
 import * as crypto from "crypto";
+import { FileUndoEntry } from "./types";
 
 /**
  * Applies Search/Replace diff blocks copied from an LLM chat, following the
@@ -30,6 +31,16 @@ export interface ApplySummary {
   deleted: number;
   /** Blocks whose SEARCH matched only via the whitespace-lenient fallbacks. */
   fuzzy: number;
+}
+
+/**
+ * What `applyDiffs` returns: the human-facing summary plus the per-file
+ * "before" snapshots needed to restore the workspace later. Undo entries are
+ * built even if the caller chooses not to keep them.
+ */
+export interface ApplyResult {
+  summary: ApplySummary;
+  undo: FileUndoEntry[];
 }
 
 const SEARCH_MARKER = "<<<<<<< SEARCH";
@@ -263,6 +274,8 @@ function findMatch(
 
 interface FilePlan {
   absPath: string;
+  /** Path exactly as it appeared in the diff; used as fallback for messages. */
+  displayPath: string;
   existed: boolean;
   content: string;
   deleted: boolean;
@@ -271,7 +284,7 @@ interface FilePlan {
 export async function applyDiffs(
   rootDir: string,
   text: string,
-): Promise<ApplySummary> {
+): Promise<ApplyResult> {
   const blocks = parseDiffBlocks(text);
   if (blocks.length === 0) {
     throw new Error("Clipboard does not contain any SEARCH/REPLACE blocks.");
@@ -288,6 +301,7 @@ export async function applyDiffs(
       const original = await readFileIfExists(absPath);
       plan = {
         absPath,
+        displayPath: block.file,
         existed: original !== undefined,
         content: original ?? "",
         deleted: false,
@@ -327,6 +341,17 @@ export async function applyDiffs(
     if (block.replace === "" && plan.existed && plan.content.trim() === "") {
       plan.deleted = true;
     }
+  }
+
+  // Snapshot the exact bytes on disk before we mutate anything. Same source
+  // of truth the plans started from (a fresh `fs.readFile`), so the recorded
+  // "before" matches what apply overwrites, tab-for-tab and byte-for-byte.
+  const originals = new Map<string, string | null>();
+  for (const plan of plans.values()) {
+    originals.set(
+      plan.absPath,
+      plan.existed ? await readUtf8OrNull(plan.absPath) : null,
+    );
   }
 
   const edit = new vscode.WorkspaceEdit();
@@ -369,5 +394,108 @@ export async function applyDiffs(
     await doc.save();
   }
 
-  return { modified, created, deleted, fuzzy };
+  const undo: FileUndoEntry[] = [];
+  for (const plan of plans.values()) {
+    undo.push({
+      absPath: plan.absPath,
+      relPath: toRelPath(rootDir, plan.absPath, plan.displayPath),
+      existedBefore: plan.existed,
+      deletedByApply: plan.deleted,
+      before: originals.get(plan.absPath) ?? null,
+    });
+  }
+
+  return {
+    summary: { modified, created, deleted, fuzzy },
+    undo,
+  };
+}
+
+/**
+ * Reverses a prior `applyDiffs` by writing each file back to the exact bytes
+ * captured in `undo` just before that apply ran. This is a *state* restore,
+ * not an operation-inverse: any edits made after apply — manual, formatter,
+ * or by another tool — will be silently overwritten with the pre-apply bytes.
+ *
+ * The caller is responsible for user confirmation before invoking this.
+ */
+export interface RestoreSummary {
+  /** Files that were modified by apply; their `before` was written back. */
+  restored: number;
+  /** Files apply deleted; recreated verbatim from `before`. */
+  recreated: number;
+  /** Files apply created; deleted now. */
+  removed: number;
+}
+
+export async function restoreSnapshot(
+  undo: FileUndoEntry[],
+): Promise<RestoreSummary> {
+  if (undo.length === 0) {
+    throw new Error("Nothing to restore — the snapshot is empty.");
+  }
+
+  const edit = new vscode.WorkspaceEdit();
+  const touched: vscode.Uri[] = [];
+  let restored = 0;
+  let recreated = 0;
+  let removed = 0;
+
+  for (const entry of undo) {
+    const uri = vscode.Uri.file(entry.absPath);
+
+    if (!entry.existedBefore) {
+      // Apply created this file → remove it. If the user already deleted it,
+      // VS Code's edit engine tolerates the no-op.
+      edit.deleteFile(uri);
+      removed++;
+      continue;
+    }
+
+    if (entry.deletedByApply) {
+      // Apply deleted it → recreate verbatim from `before`.
+      edit.createFile(uri, { overwrite: true });
+      if (entry.before) {
+        edit.insert(uri, new vscode.Position(0, 0), entry.before);
+      }
+      recreated++;
+      touched.push(uri);
+      continue;
+    }
+
+    // Apply modified it → replace the whole buffer with `before`.
+    const doc = await vscode.workspace.openTextDocument(uri);
+    const fullRange = new vscode.Range(0, 0, doc.lineCount, 0);
+    edit.replace(doc.uri, fullRange, entry.before ?? "");
+    restored++;
+    touched.push(uri);
+  }
+
+  const applied = await vscode.workspace.applyEdit(edit);
+  if (!applied) {
+    throw new Error("VS Code refused to apply the restore edit.");
+  }
+
+  for (const uri of touched) {
+    const doc = await vscode.workspace.openTextDocument(uri);
+    await doc.save();
+  }
+
+  return { restored, recreated, removed };
+}
+
+async function readUtf8OrNull(absPath: string): Promise<string | null> {
+  try {
+    return await fs.readFile(absPath, "utf8");
+  } catch {
+    return null;
+  }
+}
+
+function toRelPath(rootDir: string, absPath: string, fallback: string): string {
+  const rel = path.relative(rootDir, absPath);
+  if (!rel || rel.startsWith("..") || path.isAbsolute(rel)) {
+    return fallback;
+  }
+  return rel.replace(/\\/g, "/");
 }
