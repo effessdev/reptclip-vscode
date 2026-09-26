@@ -436,7 +436,9 @@
 
     if (message.type === "applyResult") {
       els.status.textContent = message.ok
-        ? `Applied: ${message.modified} modified, ${message.created} created, ${message.deleted} deleted${message.fuzzy ? `, ${message.fuzzy} fuzzy` : ""}.`
+        ? message.alreadyApplied
+          ? "Already applied — this diff was applied before."
+          : `Applied: ${message.modified} modified, ${message.created} created, ${message.deleted} deleted${message.fuzzy ? `, ${message.fuzzy} fuzzy` : ""}.`
         : `Error: ${message.error}`;
     }
   });

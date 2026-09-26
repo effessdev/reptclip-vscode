@@ -1,9 +1,14 @@
 import * as vscode from "vscode";
 import { getHtml } from "./getHtml";
-import { loadProjectState, saveProjectState } from "../core/projectStorage";
+import {
+  loadProjectState,
+  saveProjectState,
+  loadLastAppliedDiff,
+  saveLastAppliedDiff,
+} from "../core/projectStorage";
 import { generateContext } from "../core/generateContext";
 import { copyToClipboard, readClipboard } from "../core/clipboard";
-import { applyDiffs } from "../core/diffApplier";
+import { applyDiffs, fingerprintDiff } from "../core/diffApplier";
 import { writeOutputFile } from "../core/outputWriter";
 import { collectCandidates, filterCandidates } from "../core/completions";
 import { collectNonIgnoredFiles } from "../core/gitignoreScanner";
@@ -212,7 +217,27 @@ export class ReptclipViewProvider implements vscode.WebviewViewProvider {
                   "Clipboard is empty — copy a Search/Replace diff first.",
                 );
               }
+
+              const fingerprint = fingerprintDiff(clipboardText);
+              if (loadLastAppliedDiff(this.context, rootDir) === fingerprint) {
+                post({
+                  type: "applyResult",
+                  ok: true,
+                  modified: 0,
+                  created: 0,
+                  deleted: 0,
+                  fuzzy: 0,
+                  alreadyApplied: true,
+                });
+                vscode.window.setStatusBarMessage(
+                  "ReptClip: this diff was already applied — skipping.",
+                  4000,
+                );
+                return;
+              }
+
               const summary = await applyDiffs(rootDir, clipboardText);
+              await saveLastAppliedDiff(this.context, rootDir, fingerprint);
 
               post({ type: "applyResult", ok: true, ...summary });
               vscode.window.setStatusBarMessage(

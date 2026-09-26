@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import * as fs from "fs/promises";
 import * as path from "path";
+import * as crypto from "crypto";
 
 /**
  * Applies Search/Replace diff blocks copied from an LLM chat, following the
@@ -105,6 +106,24 @@ export function parseDiffBlocks(text: string): DiffBlock[] {
     throw new Error("Truncated diff: a SEARCH/REPLACE block is not closed.");
   }
   return blocks;
+}
+
+/**
+ * Stable content hash of a diff, derived from its parsed blocks (not the raw
+ * clipboard text) so line-ending and surrounding-fence differences don't
+ * produce a different fingerprint for the same change. Used to remember the
+ * last applied diff and avoid re-applying it. Throws on malformed diffs, which
+ * mirrors `applyDiffs` so callers surface the same error.
+ */
+export function fingerprintDiff(text: string): string {
+  const blocks = parseDiffBlocks(text);
+  if (blocks.length === 0) {
+    throw new Error("Clipboard does not contain any SEARCH/REPLACE blocks.");
+  }
+  const canonical = blocks
+    .map((b) => `${b.file}\u0000${b.search}\u0000${b.replace}`)
+    .join("\u0001");
+  return crypto.createHash("sha256").update(canonical).digest("hex");
 }
 
 /** Resolves a diff path against the workspace root, rejecting escapes. */
