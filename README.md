@@ -5,7 +5,7 @@
 
 Turn your project into clean Markdown context for AI chatbots and copy it **straight to your clipboard**, automatically respecting `.gitignore` files.
 
-<img width="100%" alt="Preview image" src="https://github.com/user-attachments/assets/55568e7f-4c68-48bf-830a-d69684e6985c" />
+<img width="799" alt="Preview image" src="https://github.com/user-attachments/assets/55568e7f-4c68-48bf-830a-d69684e6985c" />
 
 > **Note:** If you are looking for the original ReptClip (the CLI version), here is the link: [ReptClip](https://github.com/effessdev/reptclip)
 
@@ -23,7 +23,7 @@ Turn your project into clean Markdown context for AI chatbots and copy it **stra
 
 Suggestions look like this:
 
-<img width="100%" alt="image" src="https://github.com/user-attachments/assets/44fb4f56-5015-4412-8d03-861965d803a0" />
+<img width="800" alt="Suggestions preview" src="https://github.com/user-attachments/assets/44fb4f56-5015-4412-8d03-861965d803a0" />
 
 ## Supported configurations
 
