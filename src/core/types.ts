@@ -13,7 +13,7 @@ export interface UiState {
 
 export function defaultUiState(): UiState {
   return {
-    include: "AGENTS.md",
+    include: "",
     exclude: "",
     clipboard: true,
     projectStructure: true,
