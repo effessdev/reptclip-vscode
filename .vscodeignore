@@ -8,5 +8,6 @@ tsconfig.json
 **/*.map
 **/*.ts
 !dist/**
+!media/**
 .git/**
 *.vsix
