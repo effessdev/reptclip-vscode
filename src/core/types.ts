@@ -7,6 +7,7 @@ export interface UiState {
   exclude: string;
   clipboard: boolean;
   projectStructure: boolean;
+  diffFormat: boolean;
   promptTail: boolean;
   outputFile: string;
 }
@@ -17,6 +18,7 @@ export function defaultUiState(): UiState {
     exclude: "",
     clipboard: true,
     projectStructure: true,
+    diffFormat: true,
     promptTail: true,
     outputFile: "",
   };
@@ -33,6 +35,16 @@ export type HostToWebviewMessage =
   | { type: "init"; state: UiState; hasWorkspace: boolean }
   | { type: "runResult"; ok: true; fileCount: number }
   | { type: "runResult"; ok: false; error: string }
+  | {
+      type: "applyResult";
+      ok: true;
+      modified: number;
+      created: number;
+      deleted: number;
+      fuzzy: number;
+      alreadyApplied?: boolean;
+    }
+  | { type: "applyResult"; ok: false; error: string }
   | { type: "suggestResult"; requestId: number; items: string[] }
   | {
       type: "highlightResult";
@@ -45,5 +57,6 @@ export type HostToWebviewMessage =
 export type WebviewToHostMessage =
   | { type: "stateChanged"; state: UiState }
   | { type: "run"; state: UiState }
+  | { type: "applyDiffs" }
   | { type: "suggest"; requestId: number; prefix: string }
   | { type: "highlight"; requestId: number; include: string; exclude: string };

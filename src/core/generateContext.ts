@@ -30,6 +30,7 @@ export async function generateContext(
     includedFiles,
     fileContents,
     includeStructure: state.projectStructure,
+    includeDiffFormat: state.diffFormat,
     includePromptTail: state.promptTail,
   });
 

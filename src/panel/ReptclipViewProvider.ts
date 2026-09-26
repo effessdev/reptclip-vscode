@@ -1,8 +1,14 @@
 import * as vscode from "vscode";
 import { getHtml } from "./getHtml";
-import { loadProjectState, saveProjectState } from "../core/projectStorage";
+import {
+  loadProjectState,
+  saveProjectState,
+  loadLastAppliedDiff,
+  saveLastAppliedDiff,
+} from "../core/projectStorage";
 import { generateContext } from "../core/generateContext";
-import { copyToClipboard } from "../core/clipboard";
+import { copyToClipboard, readClipboard } from "../core/clipboard";
+import { applyDiffs, fingerprintDiff } from "../core/diffApplier";
 import { writeOutputFile } from "../core/outputWriter";
 import { collectCandidates, filterCandidates } from "../core/completions";
 import { collectNonIgnoredFiles } from "../core/gitignoreScanner";
@@ -192,6 +198,55 @@ export class ReptclipViewProvider implements vscode.WebviewViewProvider {
               const message_ = err instanceof Error ? err.message : String(err);
               vscode.window.showErrorMessage(`ReptClip failed: ${message_}`);
               post({ type: "runResult", ok: false, error: message_ });
+            }
+            return;
+          }
+
+          case "applyDiffs": {
+            if (!rootDir) {
+              vscode.window.showWarningMessage(
+                "ReptClip: open a folder first.",
+              );
+              return;
+            }
+
+            try {
+              const clipboardText = await readClipboard();
+              if (!clipboardText.trim()) {
+                throw new Error(
+                  "Clipboard is empty — copy a Search/Replace diff first.",
+                );
+              }
+
+              const fingerprint = fingerprintDiff(clipboardText);
+              if (loadLastAppliedDiff(this.context, rootDir) === fingerprint) {
+                post({
+                  type: "applyResult",
+                  ok: true,
+                  modified: 0,
+                  created: 0,
+                  deleted: 0,
+                  fuzzy: 0,
+                  alreadyApplied: true,
+                });
+                vscode.window.setStatusBarMessage(
+                  "ReptClip: this diff was already applied — skipping.",
+                  4000,
+                );
+                return;
+              }
+
+              const summary = await applyDiffs(rootDir, clipboardText);
+              await saveLastAppliedDiff(this.context, rootDir, fingerprint);
+
+              post({ type: "applyResult", ok: true, ...summary });
+              vscode.window.setStatusBarMessage(
+                `ReptClip: applied diffs — ${summary.modified} modified, ${summary.created} created, ${summary.deleted} deleted${summary.fuzzy ? ` (${summary.fuzzy} fuzzy-matched — review the changes)` : ""}`,
+                4000,
+              );
+            } catch (err) {
+              const message_ = err instanceof Error ? err.message : String(err);
+              post({ type: "applyResult", ok: false, error: message_ });
             }
             return;
           }

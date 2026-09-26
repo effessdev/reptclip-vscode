@@ -8,9 +8,11 @@
     exclude: document.getElementById("exclude"),
     clipboard: document.getElementById("clipboard"),
     structure: document.getElementById("structure"),
+    diffFormat: document.getElementById("diffFormat"),
     promptTail: document.getElementById("promptTail"),
     output: document.getElementById("output"),
     runBtn: document.getElementById("runBtn"),
+    applyBtn: document.getElementById("applyBtn"),
     status: document.getElementById("status"),
     warning: document.getElementById("warning"),
     suggest: document.getElementById("suggest"),
@@ -141,6 +143,7 @@
       exclude: els.exclude.value,
       clipboard: els.clipboard.checked,
       projectStructure: els.structure.checked,
+      diffFormat: els.diffFormat.checked,
       promptTail: els.promptTail.checked,
       outputFile: els.output.value,
     };
@@ -159,9 +162,21 @@
   }
   const persistDebounced = debounce(persist, 300);
 
+  function setStatus(text, isError = false) {
+    els.status.textContent = text;
+    els.status.classList.toggle("status--error", isError);
+  }
+
   function run() {
-    els.status.textContent = "Working…";
+    setStatus("Working…");
     vscode.postMessage({ type: "run", state: currentState() });
+  }
+
+  // The host reads the clipboard (the webview sandbox has no clipboard
+  // access) and applies the Search/Replace blocks it finds there.
+  function applyFromClipboard() {
+    setStatus("Applying…");
+    vscode.postMessage({ type: "applyDiffs" });
   }
 
   // --- Autocomplete -------------------------------------------------------
@@ -371,11 +386,14 @@
   });
 
   els.output.addEventListener("input", persistDebounced);
-  [els.clipboard, els.structure, els.promptTail].forEach((el) => {
-    el.addEventListener("change", persist);
-  });
+  [els.clipboard, els.structure, els.diffFormat, els.promptTail].forEach(
+    (el) => {
+      el.addEventListener("change", persist);
+    },
+  );
 
   els.runBtn.addEventListener("click", run);
+  els.applyBtn.addEventListener("click", applyFromClipboard);
 
   window.addEventListener("message", (event) => {
     const message = event.data;
@@ -386,10 +404,12 @@
       els.exclude.value = s.exclude ?? "";
       els.clipboard.checked = !!s.clipboard;
       els.structure.checked = !!s.projectStructure;
+      els.diffFormat.checked = !!s.diffFormat;
       els.promptTail.checked = !!s.promptTail;
       els.output.value = s.outputFile ?? "";
       els.warning.hidden = message.hasWorkspace;
       els.runBtn.disabled = !message.hasWorkspace;
+      els.applyBtn.disabled = !message.hasWorkspace;
       editors.forEach(renderBackdrop);
       if (message.hasWorkspace) {
         requestHighlight();
@@ -414,9 +434,26 @@
     }
 
     if (message.type === "runResult") {
-      els.status.textContent = message.ok
-        ? `Done: ${message.fileCount} file(s) included.`
-        : `Error: ${message.error}`;
+      if (message.ok) {
+        setStatus(`Done: ${message.fileCount} file(s) included.`);
+      } else {
+        setStatus(`Error: ${message.error}`, true);
+      }
+    }
+
+    if (message.type === "applyResult") {
+      if (message.ok) {
+        setStatus(
+          message.alreadyApplied
+            ? "Already applied — this diff was applied before."
+            : `Applied: ${message.modified} modified, ${message.created} created, ${message.deleted} deleted${message.fuzzy ? `, ${message.fuzzy} fuzzy` : ""}.`,
+        );
+      } else {
+        setStatus(
+          `Not applied — no files were changed. ${message.error}`,
+          true,
+        );
+      }
     }
   });
 })();

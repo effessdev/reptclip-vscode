@@ -64,6 +64,10 @@ export function getHtml(
         <span>Project structure</span>
       </label>
       <label class="checkbox">
+        <input type="checkbox" id="diffFormat" />
+        <span>Diff format</span>
+      </label>
+      <label class="checkbox">
         <input type="checkbox" id="promptTail" />
         <span>Prompt tail</span>
       </label>
@@ -76,6 +80,7 @@ export function getHtml(
 
   <div class="actions">
     <button id="runBtn" type="button">Generate</button>
+    <button id="applyBtn" type="button" title="Read Search/Replace blocks from the clipboard and apply them to the workspace">Apply Diffs</button>
     <span id="status" class="status" aria-live="polite"></span>
   </div>
 
