@@ -160,7 +160,7 @@ Do not make mistakes.
 <- Cursor lands here; you can quickly start typing
 `````
 
-## Note
+## Behaviour notes
 
 - **Only files not excluded by `.gitignore` are ever considered**, using layered, per-directory `.gitignore` parsing (via the `ignore` package) rather than shelling out to git.
 
@@ -170,19 +170,21 @@ Do not make mistakes.
 
 - **Enter inside any input runs Generate**, so you never have to reach for the button; while the suggestion dropdown is open, Enter/Tab *accepts* the highlighted file instead, and `Shift + Enter` always inserts a newline.
 
-- **Applying a diff is all-or-nothing**: if any SEARCH block fails to validate (no match, not unique, edits a deleted file, …), the entire diff isn't applied, and you get an error message stating the reason.
+- **Applying a diff is all-or-nothing**: if any SEARCH block fails to validate (no match, not unique, edits a deleted file, etc.), the entire diff isn't applied, and you get an error message stating the reason.
 
 - **SEARCH blocks support fuzzy matching**, trying an exact match first and only then falling back to tolerant matching: line-ending differences (CRLF/LF), trailing whitespace, shifted indentation, and tabs-vs-spaces. **A unique match is still required at every level**. The number of fuzzy SEARCH blocks (did not match the file byte-for-byte) will be displayed.
 
 - **"Restore" restores the affected files to the exact state they were before applying the diff**, this is done by storing a copy of all affected files before applying a diff.
 
-- **The same diff won't be applied twice**, re-clicking "Apply Diffs" with unchanged clipboard content is detected using its hash and is skipped.
+- **The last applied diff won't be applied again in the same session**, clicking "Apply Diffs" hashes the parsed SEARCH/REPLACE blocks (so surrounding code fences, line-ending differences, and stray whitespace don't matter) and skips when the hash matches the diff currently remembered for "Restore". Only the most recent apply is tracked, and the memory of it lives in the snapshot itself — after a "Restore" or a window reload, the same diff can be applied again.
 
 - **Applied files are saved automatically**, no dirty editor tabs left behind, and each file's regular undo (`Ctrl + Z`) still works.
 
 - **"Restore" only covers the last applied diff**, and the snapshot lives in memory: reloading the window clears it. It's a state restore, so edits made *after* applying the diff are overwritten (a confirmation dialog lists the affected files first).
 
 - **In case of redundant items, the item that comes last gets order preference**, so if you set files to include as `**/*.py main.py`, `main.py` comes after all other `.py` files. `**/*.py src/**/*.py` puts `.py` files in `src` last. Whatever order you type in, that is preserved.
+
+- **Items in files to include that match at least one file turn green, and others turn yellow**. Items in files to exclude requires matching at least one included file, otherwise they turn yellow.
 
 ---
 
