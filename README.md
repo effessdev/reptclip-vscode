@@ -7,8 +7,6 @@ Paste your project as clean Markdown context into a free Chatbot, and apply the 
 
 <img width="1447" alt="image" src="https://github.com/user-attachments/assets/5ff87216-785f-48a5-851c-4d24e8369ad4" />
 
-> **Note:** If you are looking for the original ReptClip (the CLI version), here is the link: [ReptClip](https://github.com/effessdev/reptclip)
-
 ## Workflow
 
 1. Specify the files you want to include in the context and press "Enter" to copy it into your clipboard
