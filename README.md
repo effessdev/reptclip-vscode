@@ -186,6 +186,6 @@ Do not make mistakes.
 
 - **Items in files to include that match at least one file turn green, and others turn yellow**. Items in files to exclude requires matching at least one included file, otherwise they turn yellow.
 
----
+## Thanks 😊
 
 Thanks for reading! If you found this useful, please consider dropping a ⭐. It really helps **A LOT!**
