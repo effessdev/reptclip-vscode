@@ -30,10 +30,6 @@ The extension will automatically read the diffs from your clipboard and update t
 - Revert a diff by clicking "Restore"
 - Automatically respects `.gitignore` files
 
-Suggestions look like this:
-
-<img width="1441" alt="image" src="https://github.com/user-attachments/assets/e1f4b96c-de03-421d-8f12-b89308176951" />
-
 ## Supported configurations
 
 1. **Files to include**: patterns/paths separated by spaces (e.g. `AGENTS.md src/**/*.py`). Quotes are only needed if a pattern contains a space. Order is preserved.
