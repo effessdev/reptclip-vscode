@@ -5,7 +5,7 @@
 
 Paste your project as clean Markdown context into a free Chatbot, and apply the generated diffs in one click!
 
-<img width="1447" alt="image" src="https://github.com/user-attachments/assets/5ff87216-785f-48a5-851c-4d24e8369ad4" />
+<img width="1280" alt="g76o1rs7r35328ejfbdc" src="https://github.com/user-attachments/assets/1a034a47-258f-46d0-8d88-0654302b95b0" />
 
 ## Workflow
 
