@@ -103,8 +103,9 @@ export function buildMarkdown(input: BuildMarkdownInput): string {
   }
 
   if (input.includePromptTail) {
-    parts.push("# Prompt\n");
+    parts.push("# Prompt");
   }
 
-  return parts.join("\n\n").trimEnd() + "\n";
+  const body = parts.join("\n\n").trimEnd();
+  return input.includePromptTail ? body + "\n\n" : body + "\n";
 }
