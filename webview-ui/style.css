@@ -155,8 +155,7 @@ input[type="text"]:focus {
 }
 
 button#runBtn,
-button#applyBtn,
-button#revertBtn {
+button#applyBtn {
   background: var(--vscode-button-background);
   color: var(--vscode-button-foreground);
   border: none;
@@ -170,27 +169,23 @@ button#revertBtn {
 }
 
 button#runBtn:hover,
-button#applyBtn:hover,
-button#revertBtn:hover {
+button#applyBtn:hover {
   background: var(--vscode-button-hoverBackground);
 }
 
-/* Secondary look so "Apply Diffs" and "Restore" read as companion actions
+/* Secondary look so "Apply Diffs" reads as a companion action
    to the primary "Generate" button. */
-button#applyBtn,
-button#revertBtn {
+button#applyBtn {
   background: var(--vscode-button-secondaryBackground, #3a3d41);
   color: var(--vscode-button-secondaryForeground, #ffffff);
 }
 
-button#applyBtn:hover,
-button#revertBtn:hover {
+button#applyBtn:hover {
   background: var(--vscode-button-secondaryHoverBackground, #45494e);
 }
 
 button#runBtn:disabled,
-button#applyBtn:disabled,
-button#revertBtn:disabled {
+button#applyBtn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }

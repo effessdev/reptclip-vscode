@@ -13,7 +13,7 @@ type ProjectStateMap = Record<string, UiState>;
  *
  * The "already applied" fingerprint check for diffs used to live here as
  * well; it's now tracked in memory by the panel provider so it dies with
- * the window alongside the restore snapshot it guards against double-apply.
+ * the window and the same diff can be applied again after a reload.
  */
 export function loadProjectState(
   context: vscode.ExtensionContext,

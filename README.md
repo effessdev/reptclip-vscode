@@ -27,7 +27,6 @@ The extension will automatically read the diffs from your clipboard and update t
 - Syntax highlighting
 - Glob patterns for specifying files
 - Project structure
-- Revert a diff by clicking "Restore"
 - Automatically respects `.gitignore` files
 
 Suggestions look like this:
@@ -174,13 +173,9 @@ Do not make mistakes.
 
 - **SEARCH blocks support fuzzy matching**, trying an exact match first and only then falling back to tolerant matching: line-ending differences (CRLF/LF), trailing whitespace, shifted indentation, and tabs-vs-spaces. **A unique match is still required at every level**. The number of fuzzy SEARCH blocks (did not match the file byte-for-byte) will be displayed.
 
-- **"Restore" restores the affected files to the exact state they were before applying the diff**, this is done by storing a copy of all affected files before applying a diff.
-
-- **The last applied diff won't be applied again in the same session**, clicking "Apply Diffs" hashes the parsed SEARCH/REPLACE blocks (so surrounding code fences, line-ending differences, and stray whitespace don't matter) and skips when the hash matches the diff currently remembered for "Restore". Only the most recent apply is tracked, and the memory of it lives in the snapshot itself — after a "Restore" or a window reload, the same diff can be applied again.
+- **The last applied diff won't be applied again in the same session**, clicking "Apply Diffs" hashes the parsed SEARCH/REPLACE blocks (so surrounding code fences, line-ending differences, and stray whitespace don't matter) and skips when the hash matches the last applied diff. Only the most recent apply is tracked in memory, so after a window reload the same diff can be applied again.
 
 - **Applied files are saved automatically**, no dirty editor tabs left behind, and each file's regular undo (`Ctrl + Z`) still works.
-
-- **"Restore" only covers the last applied diff**, and the snapshot lives in memory: reloading the window clears it. It's a state restore, so edits made *after* applying the diff are overwritten (a confirmation dialog lists the affected files first).
 
 - **In case of redundant items, the item that comes last gets order preference**, so if you set files to include as `**/*.py main.py`, `main.py` comes after all other `.py` files. `**/*.py src/**/*.py` puts `.py` files in `src` last. Whatever order you type in, that is preserved.
 
