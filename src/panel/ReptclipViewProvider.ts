@@ -1,6 +1,11 @@
 import * as vscode from "vscode";
 import { getHtml } from "./getHtml";
-import { loadProjectState, saveProjectState } from "../core/projectStorage";
+import {
+  loadProjectState,
+  saveProjectState,
+  loadLastAppliedFingerprint,
+  saveLastAppliedFingerprint,
+} from "../core/projectStorage";
 import { generateContext } from "../core/generateContext";
 import { copyToClipboard, readClipboard } from "../core/clipboard";
 import { applyDiffs, fingerprintDiff } from "../core/diffApplier";
@@ -36,14 +41,6 @@ export class ReptclipViewProvider implements vscode.WebviewViewProvider {
 
   /** Debounce timer coalescing bursts of filesystem events. */
   private fileChangeTimer?: ReturnType<typeof setTimeout>;
-
-  /**
-   * Fingerprint of the last applied diff per normalized workspace root, used
-   * as the "already applied" guard so the same diff isn't applied twice. Kept
-   * in memory only, so a window reload clears it and the diff can be applied
-   * again.
-   */
-  private lastApplied = new Map<string, string>();
 
   constructor(
     private readonly extensionUri: vscode.Uri,
@@ -226,29 +223,43 @@ export class ReptclipViewProvider implements vscode.WebviewViewProvider {
               }
 
               const fingerprint = fingerprintDiff(clipboardText);
-              const key = normalizeRoot(rootDir);
-              // The "already applied" check is intentionally in-memory, so a
-              // window reload clears it and the user isn't stuck seeing
-              // "already applied" for a diff they can no longer act on.
-              if (this.lastApplied.get(key) === fingerprint) {
-                post({
-                  type: "applyResult",
-                  ok: true,
-                  modified: 0,
-                  created: 0,
-                  deleted: 0,
-                  fuzzy: 0,
-                  alreadyApplied: true,
-                });
-                vscode.window.setStatusBarMessage(
-                  "ReptClip: this diff was already applied — skipping.",
-                  4000,
+              // The "already applied" guard is persisted per project (only the
+              // most recent diff), so it still holds after a VS Code restart.
+              // When it trips we don't silently skip: the user can confirm to
+              // re-apply the remembered diff anyway.
+              if (
+                loadLastAppliedFingerprint(this.context, rootDir) ===
+                fingerprint
+              ) {
+                const choice = await vscode.window.showWarningMessage(
+                  "This is the same diff as the last one applied to this project. Applying it again may duplicate changes. Re-apply anyway?",
+                  { modal: true },
+                  "Re-apply",
                 );
-                return;
+                if (choice !== "Re-apply") {
+                  post({
+                    type: "applyResult",
+                    ok: true,
+                    modified: 0,
+                    created: 0,
+                    deleted: 0,
+                    fuzzy: 0,
+                    alreadyApplied: true,
+                  });
+                  vscode.window.setStatusBarMessage(
+                    "ReptClip: this diff was already applied — skipping.",
+                    4000,
+                  );
+                  return;
+                }
               }
 
               const summary = await applyDiffs(rootDir, clipboardText);
-              this.lastApplied.set(key, fingerprint);
+              await saveLastAppliedFingerprint(
+                this.context,
+                rootDir,
+                fingerprint,
+              );
 
               post({
                 type: "applyResult",
@@ -284,12 +295,4 @@ export class ReptclipViewProvider implements vscode.WebviewViewProvider {
     }
     return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
   }
-}
-
-/**
- * Stable key for `lastApplied`, matching the normalization used in
- * `projectStorage` so the two stay consistent across sessions.
- */
-function normalizeRoot(rootDir: string): string {
-  return rootDir.replace(/[\\/]+$/, "");
 }

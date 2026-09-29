@@ -169,7 +169,7 @@ Do not make mistakes.
 
 - **SEARCH blocks support fuzzy matching**, trying an exact match first and only then falling back to tolerant matching: line-ending differences (CRLF/LF), trailing whitespace, shifted indentation, and tabs-vs-spaces. **A unique match is still required at every level**. The number of fuzzy SEARCH blocks (did not match the file byte-for-byte) will be displayed.
 
-- **The last applied diff won't be applied again in the same session**, clicking "Apply Diffs" hashes the parsed SEARCH/REPLACE blocks (so surrounding code fences, line-ending differences, and stray whitespace don't matter) and skips when the hash matches the last applied diff. Only the most recent apply is tracked in memory, so after a window reload the same diff can be applied again.
+- **The last applied diff won't be silently re-applied**, clicking "Apply Diffs" hashes the parsed SEARCH/REPLACE blocks (so surrounding code fences, line-ending differences, and stray whitespace don't matter) and compares the hash against the last applied diff. That hash is stored persistently per project (only the most recent one is remembered), so the check still holds after restarting VS Code. When it matches, a confirmation dialog asks before re-applying, which you can accept to bypass the guard.
 
 - **Applied files are saved automatically**, no dirty editor tabs left behind, and each file's regular undo (`Ctrl + Z`) still works.
 
