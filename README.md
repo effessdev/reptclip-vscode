@@ -9,9 +9,9 @@ Paste your project as clean Markdown context into a free Chatbot, and apply the 
 
 ## Workflow
 
-1. Specify the files you want to include in the context and press "Enter" to copy it into your clipboard
-2. Paste it into a free chatbot along with your prompt, and let it generate the diffs
-3. Copy the code block containing the diffs, and click "Apply Diffs"
+1. Specify the files you want to include in the context and press "Enter" to **copy it into your clipboard**
+2. Paste it into a free chatbot along with your prompt, and **let it generate the diffs**
+3. Copy the code block containing the diffs, and **click "Apply Diffs"**
 
 The extension will automatically read the diffs from your clipboard and update the files accordingly!
 
@@ -21,36 +21,21 @@ The extension will automatically read the diffs from your clipboard and update t
 2. Open the bottom panel using `` Ctrl + ` ``
 3. Open the **ReptClip** tab in the panel (Click `...` if you can't see it)
 
-## Other features
+**All settings are remembered per project**, so you don't have to re-enter them every time, and won't be mixed up with other projects.
 
-- Get suggestions as you type
-- Syntax highlighting
-- Glob patterns for specifying files
-- Project structure
-- Automatically respects `.gitignore` files
+## Context
 
-## Supported configurations
+The generated context has the following sections (**each one can be toggled ON or OFF using checkboxes**):
 
-1. **Files to include**: patterns/paths separated by spaces (e.g. `AGENTS.md src/**/*.py`). Quotes are only needed if a pattern contains a space. Order is preserved.
-2. **Files to exclude**: same syntax; applied after include patterns.
-3. Checkboxes:
-   1. **Clipboard**: copies the generated Markdown straight to your clipboard.
-   2. **Project structure**: includes a `# Project structure` section listing every file in the project that isn't excluded by `.gitignore`.
-   3. **Prompt tail**: appends `# Prompt\n\n` to the end of the output, so your cursor has somewhere to land when you paste into a chat.
-   4. **Output format**: adds an `# Output format` section which has instructions to generate the output as diff files in a code block so they can be easily copied and applied using the "Apply Diffs" button.
-4. **Output file** text box (leave empty to skip writing a file; accepts relative or absolute paths).
+- **Project structure:** lists the relative paths to all files in the project that have not been ignored using `.gitignore`.
+- **Output format:** contains the instructions regarding how to generate the output.
+- **Prompt:** An empty `# Prompt\n\n` section to type in your prompt.
 
-## Edge cases
+The included files are placed between the "Output format" section and the "Prompt" section. You can include files to the context by either entering the relative paths of them or a matching glob pattern in the **Files to include** textarea, separated by spaces.
 
-- Files to include `**/*.py main.py`: All Python files are included, but `main.py` comes last.
-- Files to include `**/*.py src/**/*.py`: All Python files are included, but the Python files in `src` come last.
-- Files to include `**/*.py`, files to exclude `secret.py`: All Python files are included, except `secret.py`.
+Example generated context (only `AGENTS.md` is included):
 
-## Example context
-
-The generated context looks like this:
-
-`````
+````markdown
 # Project structure
 
 ```
@@ -142,17 +127,23 @@ Do not make mistakes.
 # Prompt
 
 <- Cursor lands here. You can quickly start typing.
-`````
+````
 
-## Behaviour notes
+**Enter inside any input runs Generate**, so you never have to reach for the button; while the suggestion dropdown is open, Enter/Tab *accepts* the highlighted file instead, and `Shift + Enter` always inserts a newline.
+
+### Safety measures for context
 
 - **Only files not excluded by `.gitignore` are ever considered**, using layered, per-directory `.gitignore` parsing (via the `ignore` package) rather than shelling out to git.
 
-- **Include/exclude patterns and checkbox settings are remembered per project**, so you don't have to re-enter them every time you open the panel.
-
 - **Oversized and binary files are skipped automatically**, replaced by a descriptive placeholder in the output (limit: 1 MB; binaries detected via NUL-byte sniffing), they still appear in the project structure listing.
 
-- **Enter inside any input runs Generate**, so you never have to reach for the button; while the suggestion dropdown is open, Enter/Tab *accepts* the highlighted file instead, and `Shift + Enter` always inserts a newline.
+## Applying diffs
+
+When you click the "Apply diffs" button, the diffs are read from your clipboard and applied to the files.
+
+If you have turned on the "Output format" section, the AI will generate the diffs in a single code block. You can copy those diffs, and click "Apply diffs" to apply them.
+
+### Safety measures for applying diffs
 
 - **Applying a diff is all-or-nothing**: if any SEARCH block fails to validate (no match, not unique, edits a deleted file, etc.), the entire diff isn't applied, and you get an error message stating the reason.
 
@@ -160,12 +151,26 @@ Do not make mistakes.
 
 - **The last applied diff won't be silently re-applied**, clicking "Apply Diffs" hashes the parsed SEARCH/REPLACE blocks (so surrounding code fences, line-ending differences, and stray whitespace don't matter) and compares the hash against the last applied diff. That hash is stored persistently per project (only the most recent one is remembered), so the check still holds after restarting VS Code. When it matches, a confirmation dialog asks before re-applying, which you can accept to bypass the guard.
 
-- **Applied files are saved automatically**, no dirty editor tabs left behind, and each file's regular undo (`Ctrl + Z`) still works.
+**Applied files are saved automatically**, and each file's regular undo (`Ctrl + Z`) still works.
 
-- **In case of redundant items, the item that comes last gets order preference**, so if you set files to include as `**/*.py main.py`, `main.py` comes after all other `.py` files. `**/*.py src/**/*.py` puts `.py` files in `src` last. Whatever order you type in, that is preserved.
+## Adding files to context
 
-- **Items in files to include that match at least one file turn green, and others turn yellow**. Items in files to exclude requires matching at least one included file, otherwise they turn yellow.
+This is done by the following textareas:
 
-## Thanks 😊
+- **Files to include:** Specify which files to include in the context, separated by spaces. You can use the relative paths, or glob patterns to match files.
+- **Files to exclude:** Specify which files you want to exclude from the included files. Particuluarly useful when you want to include a lot of files using a glob pattern, but exclude a specific file from them.
 
-Thanks for reading! If you found this useful, please consider dropping a ⭐. It really helps **A LOT!**
+You will get **suggestions** and **syntax highlighting** as you type the files. A relative path or a glob pattern in "Files to include" will turn **green** if they match at least one file, and turn **yellow** if they math no files. For "Files to exclude", green means it matches **at least one included file**.
+
+The order in which you entered the relative paths or glob patterns is preserved. In case of redundant items, **the item that comes last gets order preference**, so if you set files to include as `**/*.py main.py`, `main.py` comes after all other `.py` files. `**/*.py src/**/*.py` puts `.py` files in `src` last.
+
+### Example
+
+Include `AGENTS.md`, all Python files, but exclude `src/secret.py` and all Python files in `tests`, and put `src/main.py` last:
+
+- **Files to include:** `AGENTS.md **/*.py src/main.py`
+- **Files to exclude:** `src/secret.py src/**/*.py`
+
+## Other notable features
+
+- Write the context to a file specified by specifying the relative or absolute path in the "Output file" text box. Leaving it empty will not write output to the file.
