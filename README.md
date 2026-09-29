@@ -131,6 +131,8 @@ Do not make mistakes.
 
 **Enter inside any input runs Generate**, so you never have to reach for the button; while the suggestion dropdown is open, Enter/Tab *accepts* the highlighted file instead, and `Shift + Enter` always inserts a newline.
 
+You can uncheck "Copy to clipboard" to turn it off.
+
 ### Safety measures for context
 
 - **Only files not excluded by `.gitignore` are ever considered**, using layered, per-directory `.gitignore` parsing (via the `ignore` package) rather than shelling out to git.
