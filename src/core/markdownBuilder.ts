@@ -8,7 +8,7 @@ export interface BuildMarkdownInput {
 }
 
 // Instruction block appended after the project structure when the
-// "Diff format" checkbox is on. Kept as a line array so the inline code
+// "Output format" checkbox is on. Kept as a line array so the inline code
 // spans and the 3-/4-backtick fences are reproduced verbatim without
 // escaping headaches.
 const DIFF_FORMAT_SECTION = [

@@ -48,6 +48,8 @@ export class ReptclipViewProvider implements vscode.WebviewViewProvider {
   ) {}
 
   resolveWebviewView(webviewView: vscode.WebviewView): void {
+    // NOTE: the view's context is kept alive across panel-tab switches via
+    // `retainContextWhenHidden`, set at registration in extension.ts.
     webviewView.webview.options = {
       enableScripts: true,
       localResourceRoots: [

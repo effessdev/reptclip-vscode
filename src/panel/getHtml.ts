@@ -65,7 +65,7 @@ export function getHtml(
       </label>
       <label class="checkbox">
         <input type="checkbox" id="diffFormat" />
-        <span>Diff format</span>
+        <span>Output format</span>
       </label>
       <label class="checkbox">
         <input type="checkbox" id="promptTail" />

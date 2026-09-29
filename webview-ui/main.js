@@ -151,10 +151,19 @@
 
   function debounce(fn, waitMs) {
     let timer;
-    return (...args) => {
+    const wrapped = (...args) => {
       clearTimeout(timer);
       timer = setTimeout(() => fn(...args), waitMs);
     };
+    // Run a pending call immediately (used when the view is about to hide).
+    wrapped.flush = () => {
+      if (timer) {
+        clearTimeout(timer);
+        timer = undefined;
+        fn();
+      }
+    };
+    return wrapped;
   }
 
   function persist() {
@@ -394,6 +403,15 @@
 
   els.runBtn.addEventListener("click", run);
   els.applyBtn.addEventListener("click", applyFromClipboard);
+
+  // Switching to another tab in the bottom panel fires a visibilitychange
+  // before dynamic content is suspended — flush any debounced save so edits
+  // typed right before the switch are never lost.
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") {
+      persistDebounced.flush();
+    }
+  });
 
   window.addEventListener("message", (event) => {
     const message = event.data;

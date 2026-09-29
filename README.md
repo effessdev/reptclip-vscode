@@ -37,7 +37,7 @@ The extension will automatically read the diffs from your clipboard and update t
    1. **Clipboard**: copies the generated Markdown straight to your clipboard.
    2. **Project structure**: includes a `# Project structure` section listing every file in the project that isn't excluded by `.gitignore`.
    3. **Prompt tail**: appends `# Prompt\n\n` to the end of the output, so your cursor has somewhere to land when you paste into a chat.
-   4. **Diff format**: adds instructions regarding how to generate the diffs.
+   4. **Output format**: adds an `# Output format` section which has instructions to generate the output as diff files in a code block so they can be easily copied and applied using the "Apply Diffs" button.
 4. **Output file** text box (leave empty to skip writing a file; accepts relative or absolute paths).
 
 ## Edge cases
