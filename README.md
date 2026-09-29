@@ -35,7 +35,7 @@ The included files are placed between the "Output format" section and the "Promp
 
 Example generated context (only `AGENTS.md` is included):
 
-````markdown
+`````markdown
 # Project structure
 
 ```
@@ -127,7 +127,7 @@ Do not make mistakes.
 # Prompt
 
 <- Cursor lands here. You can quickly start typing.
-````
+`````
 
 **Enter inside any input runs Generate**, so you never have to reach for the button; while the suggestion dropdown is open, Enter/Tab *accepts* the highlighted file instead, and `Shift + Enter` always inserts a newline.
 
