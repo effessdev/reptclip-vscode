@@ -60,31 +60,20 @@ AGENTS.md
 CONTRIBUTING.md
 LICENSE
 README.md
-assets/preview.webp
+pipxclip-config.toml
 pyproject.toml
-reptclip-config.toml
-src/reptclip/__init__.py
-src/reptclip/cli.py
-src/reptclip/cli_parser.py
-src/reptclip/clipboard.py
-src/reptclip/config.py
-src/reptclip/file_reader.py
-src/reptclip/filters.py
-src/reptclip/git_files.py
-src/reptclip/markdown_builder.py
+src/pipxclip/__init__.py
+src/pipxclip/cli.py
+src/pipxclip/config.py
 tests/test_cli.py
 tests/test_config.py
-tests/test_file_reader.py
-tests/test_filters.py
-tests/test_git_files.py
-tests/test_markdown_builder.py
 ```
 
-## Output format
+# Output format
 
 Provide all file modifications as Search/Replace blocks inside a single 4-backtick code block.
 
-### Formatting Rules
+## Formatting Rules
 
 1. **File Headers:** Every set of edits must begin with the exact relative file path on its own line (e.g., `path/to/file.ext`), even if there is only a single file in the project.
 2. **Exact Matching:** The `SEARCH` block must contain an *exact, verbatim* copy of existing code, including identical whitespace, indentation, and surrounding context lines to uniquely identify the match.
@@ -95,7 +84,7 @@ Provide all file modifications as Search/Replace blocks inside a single 4-backti
 5. **No Placeholders:** Do not use ellipses (`...`), comments like `# rest of code unchanged`, or omitted lines inside `SEARCH` or `REPLACE` blocks.
 6. **Sequential Edits:** If editing multiple parts of the same file, list the `SEARCH/REPLACE` blocks in top-to-bottom order as they appear in the file.
 
-### Example
+## Example
 
 ````
 src/models/user.py
@@ -152,7 +141,7 @@ Do not make mistakes.
 
 # Prompt
 
-<- Cursor lands here; you can quickly start typing
+<- Cursor lands here. You can quickly start typing.
 `````
 
 ## Behaviour notes
