@@ -5,7 +5,7 @@
 
 Paste your project as clean Markdown context into a free Chatbot, and apply the generated diffs in one click!
 
-<img width="1447" alt="image" src="https://github.com/user-attachments/assets/5ff87216-785f-48a5-851c-4d24e8369ad4" />
+<img width="1280" alt="g76o1rs7r35328ejfbdc" src="https://github.com/user-attachments/assets/1a034a47-258f-46d0-8d88-0654302b95b0" />
 
 ## Workflow
 
@@ -28,10 +28,6 @@ The extension will automatically read the diffs from your clipboard and update t
 - Glob patterns for specifying files
 - Project structure
 - Automatically respects `.gitignore` files
-
-Suggestions look like this:
-
-<img width="1441" alt="image" src="https://github.com/user-attachments/assets/e1f4b96c-de03-421d-8f12-b89308176951" />
 
 ## Supported configurations
 
@@ -181,6 +177,6 @@ Do not make mistakes.
 
 - **Items in files to include that match at least one file turn green, and others turn yellow**. Items in files to exclude requires matching at least one included file, otherwise they turn yellow.
 
----
+## Thanks 😊
 
 Thanks for reading! If you found this useful, please consider dropping a ⭐. It really helps **A LOT!**
