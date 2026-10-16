@@ -83,6 +83,7 @@ export function getHtml(
 
   <div class="actions">
     <button id="runBtn" type="button">Generate</button>
+    <button id="moreFilesBtn" type="button" title="Read a list of relative file paths from the clipboard and embed their contents">More Files</button>
     <button id="applyBtn" type="button" title="Read Search/Replace blocks from the clipboard and apply them to the workspace">Apply Diffs</button>
     <span id="status" class="status" aria-live="polite"></span>
   </div>

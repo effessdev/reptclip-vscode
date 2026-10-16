@@ -155,7 +155,8 @@ input[type="text"]:focus {
 }
 
 button#runBtn,
-button#applyBtn {
+button#applyBtn,
+button#moreFilesBtn {
   background: var(--vscode-button-background);
   color: var(--vscode-button-foreground);
   border: none;
@@ -169,23 +170,27 @@ button#applyBtn {
 }
 
 button#runBtn:hover,
-button#applyBtn:hover {
+button#applyBtn:hover,
+button#moreFilesBtn:hover {
   background: var(--vscode-button-hoverBackground);
 }
 
 /* Secondary look so "Apply Diffs" reads as a companion action
    to the primary "Generate" button. */
-button#applyBtn {
+button#applyBtn,
+button#moreFilesBtn {
   background: var(--vscode-button-secondaryBackground, #3a3d41);
   color: var(--vscode-button-secondaryForeground, #ffffff);
 }
 
-button#applyBtn:hover {
+button#applyBtn:hover,
+button#moreFilesBtn:hover {
   background: var(--vscode-button-secondaryHoverBackground, #45494e);
 }
 
 button#runBtn:disabled,
-button#applyBtn:disabled {
+button#applyBtn:disabled,
+button#moreFilesBtn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }

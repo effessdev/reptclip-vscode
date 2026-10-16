@@ -6,7 +6,7 @@ import {
   loadLastAppliedFingerprint,
   saveLastAppliedFingerprint,
 } from "../core/projectStorage";
-import { generateContext } from "../core/generateContext";
+import { generateContext, moreFiles } from "../core/generateContext";
 import { copyToClipboard, readClipboard } from "../core/clipboard";
 import { applyDiffs, fingerprintDiff } from "../core/diffApplier";
 import { writeOutputFile } from "../core/outputWriter";
@@ -198,6 +198,61 @@ export class ReptclipViewProvider implements vscode.WebviewViewProvider {
               });
               vscode.window.setStatusBarMessage(
                 `ReptClip: included ${result.includedFiles.length} file(s)`,
+                3000,
+              );
+            } catch (err) {
+              const message_ = err instanceof Error ? err.message : String(err);
+              vscode.window.showErrorMessage(`ReptClip failed: ${message_}`);
+              post({ type: "runResult", ok: false, error: message_ });
+            }
+            return;
+          }
+
+          case "moreFiles": {
+            if (!rootDir) {
+              vscode.window.showWarningMessage(
+                "ReptClip: open a folder first.",
+              );
+              return;
+            }
+
+            await saveProjectState(this.context, rootDir, message.state);
+
+            try {
+              const clipboardText = await readClipboard();
+              if (!clipboardText.trim()) {
+                throw new Error(
+                  "Clipboard is empty — copy a list of file paths first.",
+                );
+              }
+
+              const result = await moreFiles(
+                rootDir,
+                message.state,
+                clipboardText,
+              );
+              if (result.includedFiles.length === 0) {
+                throw new Error("No file paths found in the clipboard.");
+              }
+
+              if (message.state.clipboard) {
+                await copyToClipboard(result.markdown);
+              }
+              if (message.state.outputFile.trim()) {
+                await writeOutputFile(
+                  rootDir,
+                  message.state.outputFile,
+                  result.markdown,
+                );
+              }
+
+              post({
+                type: "runResult",
+                ok: true,
+                fileCount: result.includedFiles.length,
+              });
+              vscode.window.setStatusBarMessage(
+                `ReptClip: added ${result.includedFiles.length} file(s)`,
                 3000,
               );
             } catch (err) {

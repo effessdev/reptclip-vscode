@@ -61,6 +61,7 @@ export type HostToWebviewMessage =
 export type WebviewToHostMessage =
   | { type: "stateChanged"; state: UiState }
   | { type: "run"; state: UiState }
+  | { type: "moreFiles"; state: UiState }
   | { type: "applyDiffs" }
   | { type: "suggest"; requestId: number; prefix: string }
   | { type: "highlight"; requestId: number; include: string; exclude: string };

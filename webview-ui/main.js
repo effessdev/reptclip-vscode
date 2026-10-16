@@ -13,6 +13,7 @@
     output: document.getElementById("output"),
     runBtn: document.getElementById("runBtn"),
     applyBtn: document.getElementById("applyBtn"),
+    moreFilesBtn: document.getElementById("moreFilesBtn"),
     status: document.getElementById("status"),
     warning: document.getElementById("warning"),
     suggest: document.getElementById("suggest"),
@@ -186,6 +187,13 @@
   function applyFromClipboard() {
     setStatus("Applying…");
     vscode.postMessage({ type: "applyDiffs" });
+  }
+
+  // The host reads a list of relative file paths from the clipboard and
+  // embeds those files' contents, honoring the same output options as Generate.
+  function moreFilesFromClipboard() {
+    setStatus("Working…");
+    vscode.postMessage({ type: "moreFiles", state: currentState() });
   }
 
   // --- Autocomplete -------------------------------------------------------
@@ -402,6 +410,7 @@
   );
 
   els.runBtn.addEventListener("click", run);
+  els.moreFilesBtn.addEventListener("click", moreFilesFromClipboard);
   els.applyBtn.addEventListener("click", applyFromClipboard);
 
   // Switching to another tab in the bottom panel fires a visibilitychange
@@ -427,6 +436,7 @@
       els.output.value = s.outputFile ?? "";
       els.warning.hidden = message.hasWorkspace;
       els.runBtn.disabled = !message.hasWorkspace;
+      els.moreFilesBtn.disabled = !message.hasWorkspace;
       els.applyBtn.disabled = !message.hasWorkspace;
       editors.forEach(renderBackdrop);
       if (message.hasWorkspace) {
