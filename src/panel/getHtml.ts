@@ -27,6 +27,26 @@ export function getHtml(
   <div class="content">
     <div id="warning" class="warning" hidden>Open a folder to use ReptClip.</div>
 
+    <section class="section checkboxes">
+      <label>Click Generate or press enter inside an input to copy</label>
+      <label class="checkbox">
+        <input type="checkbox" id="clipboard" />
+        <span>Copy to clipboard</span>
+      </label>
+      <label class="checkbox">
+        <input type="checkbox" id="structure" />
+        <span>Project structure</span>
+      </label>
+      <label class="checkbox">
+        <input type="checkbox" id="diffFormat" />
+        <span>Output format</span>
+      </label>
+      <label class="checkbox">
+        <input type="checkbox" id="promptTail" />
+        <span>Prompt tail</span>
+      </label>
+    </section>
+
     <section class="section">
       <label for="include">Files to include (separated by spaces, glob patterns supported)</label>
       <div class="pattern-editor">
@@ -54,23 +74,6 @@ export function getHtml(
     </section>
 
     <section class="section checkboxes">
-      <label>Click Generate or press enter inside an input to copy</label>
-      <label class="checkbox">
-        <input type="checkbox" id="clipboard" />
-        <span>Copy to clipboard</span>
-      </label>
-      <label class="checkbox">
-        <input type="checkbox" id="structure" />
-        <span>Project structure</span>
-      </label>
-      <label class="checkbox">
-        <input type="checkbox" id="diffFormat" />
-        <span>Output format</span>
-      </label>
-      <label class="checkbox">
-        <input type="checkbox" id="promptTail" />
-        <span>Prompt tail</span>
-      </label>
       <label class="output-file">
         <span>Output file</span>
         <input type="text" id="output" spellcheck="false" placeholder="out.md" />
