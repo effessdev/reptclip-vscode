@@ -1,11 +1,32 @@
 # Output format
 
-Provide all file modifications as Search/Replace blocks inside a single 4-backtick code block.
+You have access to a tool that allows you to read and edit the files in my project.
 
-## Formatting Rules
+## How to read files
+
+Generate a code block containing the relative paths to the files, separated by newline characters.
+
+Example:
+
+```
+README.md
+src/main.py
+```
+
+After generating the code block, generate the following text:
+
+```
+Copy the above code block and click the "More Files" button in the ReptClip panel to copy the file contents to your clipboard.
+```
+
+## How to edit files
+
+To edit the files, provide all file modifications as Search/Replace blocks inside a single 4-backtick code block.
+
+Formatting Rules:
 
 1. **File Headers:** Every set of edits must begin with the exact relative file path on its own line (e.g., `path/to/file.ext`), even if there is only a single file in the project.
-2. **Exact Matching:** The `SEARCH` block must contain an *exact, verbatim* copy of existing code, including identical whitespace, indentation, and surrounding context lines to uniquely identify the match.
+2. **Exact Matching:** The `SEARCH` block must contain an *exact, verbatim* copy of existing code, including identical whitespace, indentation, and surrounding context lines to uniquely identify the match. Otherwise, the tool will not apply the diff.
 3. **Uniqueness:** Provide sufficient surrounding unchanged lines in the `SEARCH` block to ensure it matches exactly **one** location in the target file.
 4. **New Files & Deletions:**
    - To create a new file, use an empty `SEARCH` block.
@@ -52,6 +73,11 @@ def create_user(name, email):
     validate_email(email)
     return User(name, email)
 >>>>>>> REPLACE
+<<<<<<< SEARCH
+def legacy_create_user(name):
+    return User(name)
+
+>>>>>>> REPLACE
 
 src/utils/validator.py
 <<<<<<< SEARCH
@@ -59,5 +85,13 @@ src/utils/validator.py
 def validate_email(email):
     if "@" not in email:
         raise ValueError("Invalid email address")
+>>>>>>> REPLACE
+
+config/legacy.json
+<<<<<<< SEARCH
+{
+    "deprecated": true
+}
+=======
 >>>>>>> REPLACE
 ````
