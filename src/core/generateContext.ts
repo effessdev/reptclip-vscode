@@ -1,6 +1,9 @@
 import * as path from "path";
 import * as fs from "fs/promises";
-import { collectNonIgnoredFiles } from "./gitignoreScanner";
+import {
+  collectNonIgnoredFiles,
+  createEmbeddingGuard,
+} from "./gitignoreScanner";
 import { selectFiles } from "./patternMatcher";
 import { tokenize } from "./tokenizer";
 import { readFileSafe } from "./fileGuards";
@@ -26,6 +29,11 @@ export async function generateContext(
  * patterns. The structure / diff-format / prompt-tail options are honoured
  * exactly as they are for Generate, so the two features share all formatting
  * logic via `buildContext`.
+ *
+ * Naming a file here grants no access: the same `.gitignore` rules that shape
+ * Generate's candidate pool apply, and the whole list is validated up front so
+ * a single unacceptable path aborts the run instead of producing partial
+ * context.
  */
 export async function moreFiles(
   rootDir: string,
@@ -34,11 +42,13 @@ export async function moreFiles(
 ): Promise<GenerateResult> {
   const includedFiles = parsePathList(pathList);
 
-  // Validate before touching the clipboard/output: if any listed path can't
-  // be found, abort and report exactly which ones failed.
-  const missing = await findMissingFiles(rootDir, includedFiles);
-  if (missing.length > 0) {
-    throw new Error(`File(s) not found: ${missing.join(", ")}`);
+  // Validate before touching the clipboard/output: if any listed path can't be
+  // embedded (missing, a directory, ignored by `.gitignore`, outside the root),
+  // abort and report each one with its reason.
+  const rejected = await findRejectedPaths(rootDir, includedFiles);
+  if (rejected.length > 0) {
+    const detail = rejected.map((r) => `${r.path} (${r.reason})`).join(", ");
+    throw new Error(`Cannot embed: ${detail}`);
   }
 
   const allFiles = state.projectStructure
@@ -66,38 +76,59 @@ function parsePathList(pathList: string): string[] {
   return files;
 }
 
-// Returns the relative paths that don't resolve to an existing file under
-// `rootDir` (missing or pointing at a directory).
-async function findMissingFiles(
+// Checks each path against the embedding guard and the filesystem, returning
+// the ones that must not be embedded along with why. Directories are rejected
+// as clearly as missing files, since only file contents can be embedded.
+async function findRejectedPaths(
   rootDir: string,
   relPaths: string[],
-): Promise<string[]> {
-  const missing: string[] = [];
+): Promise<{ path: string; reason: string }[]> {
+  const guard = createEmbeddingGuard(rootDir);
+  const rejected: { path: string; reason: string }[] = [];
+
   for (const rel of relPaths) {
+    const verdict = await guard(rel);
+    if (!verdict.ok) {
+      rejected.push({
+        path: rel,
+        reason: verdict.reason ?? "cannot be embedded",
+      });
+      continue;
+    }
     try {
       const stat = await fs.stat(path.join(rootDir, rel));
       if (!stat.isFile()) {
-        missing.push(rel);
+        rejected.push({ path: rel, reason: "not a file" });
       }
     } catch {
-      missing.push(rel);
+      rejected.push({ path: rel, reason: "not found" });
     }
   }
-  return missing;
+
+  return rejected;
 }
 
 // Reads every selected file and assembles the final Markdown. Shared by
-// `generateContext` and `moreFiles`. A path that can't be read (e.g. one typed
-// into the clipboard that no longer exists) degrades to a placeholder instead
-// of failing the whole run.
+// `generateContext` and `moreFiles`, and the only place that reads files for
+// embedding — each path clears the embedding guard first, so anything
+// `.gitignore` hides can never be embedded regardless of which feature listed
+// it. A path that can't be read (e.g. deleted between validation and reading)
+// degrades to a placeholder instead of failing the whole run.
 async function buildContext(
   rootDir: string,
   state: UiState,
   includedFiles: string[],
   allFiles: string[],
 ): Promise<GenerateResult> {
+  const guard = createEmbeddingGuard(rootDir);
   const fileContents: Record<string, string> = {};
   for (const relPath of includedFiles) {
+    const verdict = await guard(relPath);
+    if (!verdict.ok) {
+      fileContents[relPath] = `[Skipped: ${verdict.reason}]`;
+      continue;
+    }
+
     const absPath = path.join(rootDir, relPath);
     try {
       const result = await readFileSafe(absPath);

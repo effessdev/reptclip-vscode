@@ -15,6 +15,8 @@ Paste your project as clean Markdown context into a free Chatbot, and apply the 
 
 The extension will automatically read the diffs from your clipboard and update the files accordingly!
 
+**Chatbot suddenly needs a file you forgot to include?** Don't start over: have it print the paths it wants as a code block (the built-in "Output format" instructions teach it to do exactly that), copy the block, and hit **More Files** — those files land on your clipboard in the same shape Generate produces, nothing else re-pasted.
+
 ## How to use
 
 1. Install the extension
@@ -31,7 +33,7 @@ The generated context has the following sections (**each one can be toggled ON o
 - **Output format:** contains the instructions regarding how to generate the output.
 - **Prompt:** An empty `# Prompt\n\n` section to type in your prompt.
 
-The included files are placed between the "Output format" section and the "Prompt" section. You can include files to the context by either entering the relative paths of them or a matching glob pattern in the **Files to include** textarea, separated by spaces.
+The included files are placed between the "Output format" section and the "Prompt" section. You can include files to the context by either entering the relative paths of them or a matching glob pattern in the **Files to include** textarea, separated by spaces. Mid-conversation additions are handled by the **More Files** button (see [Adding files to context](#adding-files-to-context)).
 
 Example generated context (only `AGENTS.md` is included):
 
@@ -169,9 +171,11 @@ You can uncheck "Copy to clipboard" to turn it off.
 
 ### Safety measures for context
 
-- **Only files not excluded by `.gitignore` are ever considered**, using layered, per-directory `.gitignore` parsing (via the `ignore` package) rather than shelling out to git.
+- **Only files not excluded by `.gitignore` are ever considered**, using layered, per-directory `.gitignore` parsing (via the `ignore` package) rather than shelling out to git. This isn't just a filter on one feature's candidate list, it's enforced at the single chokepoint every embedded file read passes through, so no feature and no hand-written path list can bypass it.
 
 - **Oversized and binary files are skipped automatically**, replaced by a descriptive placeholder in the output (limit: 1 MB; binaries detected via NUL-byte sniffing), they still appear in the project structure listing.
+
+- **There is no second implementation for "More Files" to worry about.** Its file list comes from the clipboard instead of the pattern textareas, but the path check, the reads, and the formatting all go through the exact same pipeline as Generate. Same `.gitignore` enforcement, same size/binary guards, same Markdown builder, same toggles honored. Byte-for-byte consistent output shape, one code path to trust.
 
 ## Applying diffs
 
@@ -191,7 +195,9 @@ If you have turned on the "Output format" section, the AI will generate the diff
 
 ## Adding files to context
 
-This is done by the following textareas:
+### Up front: the pattern textareas
+
+Pick the files before generating, with two textareas:
 
 - **Files to include:** Specify which files to include in the context, separated by spaces. You can use the relative paths, or glob patterns to match files.
 - **Files to exclude:** Specify which files you want to exclude from the included files. Particuluarly useful when you want to include a lot of files using a glob pattern, but exclude a specific file from them.
@@ -200,12 +206,22 @@ You will get **suggestions** and **syntax highlighting** as you type the files. 
 
 The order in which you entered the relative paths or glob patterns is preserved. In case of redundant items, **the item that comes last gets order preference**, so if you set files to include as `**/*.py main.py`, `main.py` comes after all other `.py` files. `**/*.py src/**/*.py` puts `.py` files in `src` last.
 
-### Example
+#### Example
 
 Include `AGENTS.md`, all Python files, but exclude `src/secret.py` and all Python files in `tests`, and put `src/main.py` last:
 
 - **Files to include:** `AGENTS.md **/*.py src/main.py`
 - **Files to exclude:** `src/secret.py src/**/*.py`
+
+### Mid-conversation: the "More Files" button
+
+Paste-ready lists of paths don't come only from you. The "Output format" section explicitly instructs the chatbot to emit one when it needs more context. Copy that list, click **More Files**, and the button does the rest: it reads the clipboard, embeds those files, and (depending on your settings) puts the result back on the clipboard and/or writes it to the "Output file".
+
+Here's what actually happens, in order:
+
+1. **Parsing is line-by-line and forgiving where it should be, strict where it must be.** Each line is trimmed and treated as one relative path. Empty lines (including runs of consecutive newlines) are skipped the way Python's `str.split()` skips empty pieces, and duplicates collapse to their first occurrence. The order you pasted is the order they're embedded in.
+2. **Pre-flight validation, all-or-nothing.** Before a single file is read, every path clears the embedding guard and is `fs.stat`-ed against the workspace root. Anything unacceptable fails the check: not found, a directory rather than a file, ignored by `.gitignore`, inside `.git`, absolute, or resolving outside the project root. Nothing is copied, nothing is written, no half-baked context reaches your clipboard; instead the panel names each offender and why, e.g. `Cannot embed: src/secret.env (ignored by .gitignore), old.py (not found)`. You fix the list and click again.
+3. **Only then does it build.** The surviving paths are read through the shared pipeline (1 MB limit, binary detection, descriptive placeholders) and formatted by the same Markdown builder used by Generate, honoring the Project structure / Output format / Prompt tail checkboxes.
 
 ## Other notable features
 
