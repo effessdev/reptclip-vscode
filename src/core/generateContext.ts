@@ -20,15 +20,24 @@ export async function generateContext(
   const excludePatterns = tokenize(state.exclude);
   const includedFiles = selectFiles(allFiles, includePatterns, excludePatterns);
 
-  return buildContext(rootDir, state, includedFiles, allFiles);
+  return buildContext(
+    rootDir,
+    {
+      includeStructure: state.projectStructure,
+      includeDiffFormat: state.diffFormat,
+      includePromptTail: state.promptTail,
+    },
+    includedFiles,
+    allFiles,
+  );
 }
 
 /**
- * Same output as `generateContext`, but the list of files to embed comes from
- * the clipboard (one relative path per line) instead of the include/exclude
- * patterns. The structure / diff-format / prompt-tail options are honoured
- * exactly as they are for Generate, so the two features share all formatting
- * logic via `buildContext`.
+ * Only the listed files are embedded: the project structure, "Output format",
+ * and "Prompt" sections are never added, so a mid-conversation supplement
+ * pastes cleanly on top of the context already in the chat instead of
+ * repeating scaffolding the chatbot has already seen. The file reads still go
+ * through the exact same `buildContext` pipeline as Generate.
  *
  * Naming a file here grants no access: the same `.gitignore` rules that shape
  * Generate's candidate pool apply, and the whole list is validated up front so
@@ -37,7 +46,6 @@ export async function generateContext(
  */
 export async function moreFiles(
   rootDir: string,
-  state: UiState,
   pathList: string,
 ): Promise<GenerateResult> {
   const includedFiles = parsePathList(pathList);
@@ -51,11 +59,16 @@ export async function moreFiles(
     throw new Error(`Cannot embed: ${detail}`);
   }
 
-  const allFiles = state.projectStructure
-    ? await collectNonIgnoredFiles(rootDir)
-    : [];
-
-  return buildContext(rootDir, state, includedFiles, allFiles);
+  return buildContext(
+    rootDir,
+    {
+      includeStructure: false,
+      includeDiffFormat: false,
+      includePromptTail: false,
+    },
+    includedFiles,
+    [],
+  );
 }
 
 // Splits clipboard text into relative paths, one per line, the way Python's
@@ -108,6 +121,14 @@ async function findRejectedPaths(
   return rejected;
 }
 
+// Which optional sections to wrap around the embedded files. Kept separate
+// from `UiState` so callers (Generate vs. More Files) can opt in explicitly.
+interface SectionOptions {
+  includeStructure: boolean;
+  includeDiffFormat: boolean;
+  includePromptTail: boolean;
+}
+
 // Reads every selected file and assembles the final Markdown. Shared by
 // `generateContext` and `moreFiles`, and the only place that reads files for
 // embedding — each path clears the embedding guard first, so anything
@@ -116,7 +137,7 @@ async function findRejectedPaths(
 // degrades to a placeholder instead of failing the whole run.
 async function buildContext(
   rootDir: string,
-  state: UiState,
+  options: SectionOptions,
   includedFiles: string[],
   allFiles: string[],
 ): Promise<GenerateResult> {
@@ -144,9 +165,9 @@ async function buildContext(
     allFiles,
     includedFiles,
     fileContents,
-    includeStructure: state.projectStructure,
-    includeDiffFormat: state.diffFormat,
-    includePromptTail: state.promptTail,
+    includeStructure: options.includeStructure,
+    includeDiffFormat: options.includeDiffFormat,
+    includePromptTail: options.includePromptTail,
   });
 
   return { markdown, allFiles, includedFiles };

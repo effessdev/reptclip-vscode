@@ -179,7 +179,7 @@ You can uncheck "Copy to clipboard" to turn it off.
 
 - **Oversized and binary files are skipped automatically**, replaced by a descriptive placeholder in the output (limit: 1 MB; binaries detected via NUL-byte sniffing), they still appear in the project structure listing.
 
-- **There is no second implementation for "More Files" to worry about.** Its file list comes from the clipboard instead of the pattern textareas, but the path check, the reads, and the formatting all go through the exact same pipeline as Generate. Same `.gitignore` enforcement, same size/binary guards, same Markdown builder, same toggles honored. Byte-for-byte consistent output shape, one code path to trust.
+- **There is no second implementation for "More Files" to worry about.** Its file list comes from the clipboard instead of the pattern textareas, but the path check and the reads go through the exact same pipeline as Generate. Same `.gitignore` enforcement, same size/binary guards, same Markdown builder. The only difference is what gets wrapped around the files: More Files embeds the listed files alone, no project structure, "Output format", or "Prompt" sections, so a mid-conversation supplement pastes cleanly on top of what the chatbot already has.
 
 ## Applying diffs
 
@@ -225,7 +225,7 @@ Here's what actually happens, in order:
 
 1. **Parsing is line-by-line and forgiving where it should be, strict where it must be.** Each line is trimmed and treated as one relative path. Empty lines (including runs of consecutive newlines) are skipped the way Python's `str.split()` skips empty pieces, and duplicates collapse to their first occurrence. The order you pasted is the order they're embedded in.
 2. **Pre-flight validation, all-or-nothing.** Before a single file is read, every path clears the embedding guard and is `fs.stat`-ed against the workspace root. Anything unacceptable fails the check: not found, a directory rather than a file, ignored by `.gitignore`, inside `.git`, absolute, or resolving outside the project root. Nothing is copied, nothing is written, no half-baked context reaches your clipboard; instead the panel names each offender and why, e.g. `Cannot embed: src/secret.env (ignored by .gitignore), old.py (not found)`. You fix the list and click again.
-3. **Only then does it build.** The surviving paths are read through the shared pipeline (1 MB limit, binary detection, descriptive placeholders) and formatted by the same Markdown builder used by Generate, honoring the Project structure / Output format / Prompt tail checkboxes.
+3. **Only then does it build.** The surviving paths are read through the shared pipeline (1 MB limit, binary detection, descriptive placeholders) and formatted by the same Markdown builder used by Generate — but with only the file sections: the Project structure / Output format / Prompt tail checkboxes are deliberately not applied, since those were already sent when you first generated the context.
 
 ## Other notable features
 
