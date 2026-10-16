@@ -21,9 +21,13 @@ Copy the above code block and click the "More Files" button in the ReptClip pane
 
 ## How to edit files
 
-To edit the files, provide all file modifications as Search/Replace blocks inside a single 4-backtick code block.
+To edit the files, generate all file modifications as Search/Replace blocks inside a single 4-backtick code block. Then, generate the following text:
 
-Formatting Rules:
+```
+Copy the above code block and click "Apply Diffs" in the ReptClip panel to apply these changes.
+```
+
+### Formatting Rules
 
 1. **File Headers:** Every set of edits must begin with the exact relative file path on its own line (e.g., `path/to/file.ext`), even if there is only a single file in the project.
 2. **Exact Matching:** The `SEARCH` block must contain an *exact, verbatim* copy of existing code, including identical whitespace, indentation, and surrounding context lines to uniquely identify the match. Otherwise, the tool will not apply the diff.
@@ -34,7 +38,7 @@ Formatting Rules:
 5. **No Placeholders:** Do not use ellipses (`...`), comments like `# rest of code unchanged`, or omitted lines inside `SEARCH` or `REPLACE` blocks.
 6. **Sequential Edits:** If editing multiple parts of the same file, list the `SEARCH/REPLACE` blocks in top-to-bottom order as they appear in the file.
 
-## Example
+### Example
 
 ````
 src/models/user.py
