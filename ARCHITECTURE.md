@@ -96,8 +96,9 @@ Each entry names the file, its single job, and whether it imports `vscode`.
   `buildContext`. Pure.
 - **`core/diffApplier.ts`** — Parses Search/Replace blocks, fingerprints them,
   and applies them. All blocks are simulated into per-file plans first
-  (all-or-nothing), then committed as a single `WorkspaceEdit` and auto-saved.
-  Includes the whitespace-lenient match ladder and the path-escape guard. *(uses
+  (all-or-nothing), then committed as a single `WorkspaceEdit`, auto-saved, and
+  opened in the editor. Includes the whitespace-lenient match ladder and the
+  path-escape guard. *(uses
   vscode: WorkspaceEdit)*
 - **`core/clipboard.ts`** — Thin wrapper over `vscode.env.clipboard`
   read/write. *(uses vscode)*
@@ -159,8 +160,12 @@ for this project, the host prompts to confirm before re-applying. Otherwise
 `applyDiffs` parses blocks with a line-state machine, resolves each path
 (rejecting escapes out of the workspace), and simulates every edit per file —
 catching no-match, ambiguous-match, edit-after-delete, and empty-SEARCH-on-existing-file
-**before** any write. Only then does it commit one `WorkspaceEdit` and save each
-touched file, keeping the editor undo stack (Ctrl+Z) intact as a safety net.
+**before** any write. Only then does it commit one `WorkspaceEdit`, save each
+touched file, and open every modified/created file as a pinned tab (reusing an
+existing tab if the file is already open) — the loop uses `preserveFocus` so no
+individual call steals focus, and a final reveal puts focus on the first
+affected file in diff order. The editor undo stack (Ctrl+Z) stays intact as a
+safety net.
 Fuzzy (whitespace-lenient) matches are counted and surfaced for review.
 
 **Autocomplete & live highlighting** — As the user types in an include/exclude

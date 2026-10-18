@@ -369,5 +369,19 @@ export async function applyDiffs(
     await doc.save();
   }
 
+  // Open each affected file as a pinned tab without stealing focus, so the
+  // user sees all changes; then reveal the first one (in diff order) so
+  // focus lands somewhere predictable instead of flickering through each.
+  // If a file is already open, VS Code reuses its existing tab.
+  for (const uri of touched) {
+    await vscode.window.showTextDocument(uri, {
+      preview: false,
+      preserveFocus: true,
+    });
+  }
+  if (touched.length > 0) {
+    await vscode.window.showTextDocument(touched[0], { preview: false });
+  }
+
   return { modified, created, deleted, fuzzy };
 }
