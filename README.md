@@ -15,7 +15,7 @@ Paste your project as clean Markdown context into a free Chatbot, and apply the 
 
 The extension will automatically read the diffs from your clipboard and update the files accordingly!
 
-**Chatbot suddenly needs a file you forgot to include?** Don't start over: have it print the paths it wants as a code block (the built-in "Output format" instructions teach it to do exactly that), copy the block, and hit **More Files** — those files land on your clipboard in the same shape Generate produces, nothing else re-pasted.
+**Chatbot suddenly needs a file you forgot to include?** It will give you the relative paths of the files it wants in a code block. Copy the block, then click **More Files** to copy them to your clipboard so you can paste them back into the chatbot.
 
 ## How to use
 
