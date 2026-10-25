@@ -5,17 +5,33 @@
 
 Paste your project as clean Markdown context into a free Chatbot, and apply the generated diffs in one click!
 
-<img width="1286" alt="2026-10-16 20-42-47" src="https://github.com/user-attachments/assets/dd139a07-493f-473a-94e7-743ca41f29ad" />
+## How it works
 
-## Workflow
+It's a 3-step process. Ideally, put VS Code and your free chatbot side-by-side.
 
-1. Specify the files you want to include in the context and press "Enter" to **copy it into your clipboard**
-2. Paste it into a free chatbot along with your prompt, and **let it generate the diffs**
-3. Copy the code block containing the diffs, and **click "Apply Diffs"**
+### Step 1: Copy context to clipboard
 
-The extension will automatically read the diffs from your clipboard and update the files accordingly!
+Specify the files you want to include in the context. You can use relative paths or glob patterns. Press "Enter" or click the "Generate" button to copy the context **straight to your clipboard**.
 
-**Chatbot suddenly needs a file you forgot to include?** It will give you the relative paths of the files it wants in a code block. Copy the block, then click **More Files** to copy them to your clipboard so you can paste them back into the chatbot.
+<img width="1920" height="1080" alt="Copying context" src="https://github.com/user-attachments/assets/611629e0-bf2e-4ac4-9fc9-2565e11cd024" />
+
+Besides the files you specify, the context also includes the **project structure** and instructions on how to generate the output. You can turn these things off if you want using checkboxes.
+
+### Step 2: Paste context into your chatbot, along with your prompt
+
+Send it and let it generate.
+
+<img width="1920" height="1080" alt="Pasting context and prompting" src="https://github.com/user-attachments/assets/b273215a-28f5-4ab8-8f00-3fc2a444a09f" />
+
+### Step 3: Apply the generated diffs
+
+The chatbot will provide the diffs in a single code block. Copy them, and click "Apply Diffs" to apply them.
+
+<img width="1920" alt="Applying diffs" src="https://github.com/user-attachments/assets/25c1aac5-82d0-4cb9-9e1e-1008f8faedcf" />
+
+### Optional step (before step 3): Add more files to the context
+
+If the chatbot wants to see more files, it will generate a code block containing the relative paths of the files. You can copy that block and click the "More Files" button to copy the contents of those files only to the clipboard, and paste it back to the chatbot.
 
 ## How to use
 
@@ -23,7 +39,7 @@ The extension will automatically read the diffs from your clipboard and update t
 2. Open the bottom panel using `` Ctrl + ` ``
 3. Open the **ReptClip** tab in the panel (Click `...` if you can't see it)
 
-**All settings are remembered per project**, so you don't have to re-enter them every time, and won't be mixed up with other projects.
+**All settings are remembered per project**, so you don't have to re-enter them every time, and they won't be mixed up with other projects.
 
 ## Context
 
