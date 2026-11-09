@@ -13,21 +13,21 @@ It's a 3-step process. Ideally, put VS Code and your free chatbot side-by-side.
 
 Specify the files you want to include in the context. You can use relative paths or glob patterns. Press "Enter" or click the "Generate" button to copy the context **straight to your clipboard**.
 
-<img width="1920" height="1080" alt="Copying context" src="https://github.com/user-attachments/assets/611629e0-bf2e-4ac4-9fc9-2565e11cd024" />
+<img width="1152" alt="Copying context" src="https://github.com/user-attachments/assets/67367d63-fcb8-4951-9214-68fd5260eacf" />
 
-Besides the files you specify, the context also includes the **project structure** and instructions on how to generate the output. You can turn these things off if you want using checkboxes.
+Besides the files you specify, the context also includes the **project structure** and instructions on how to generate the output. You can enable/disable each section using checkboxes.
 
 ### Step 2: Paste context into your chatbot, along with your prompt
 
 Send it and let it generate.
 
-<img width="1920" height="1080" alt="Pasting context and prompting" src="https://github.com/user-attachments/assets/b273215a-28f5-4ab8-8f00-3fc2a444a09f" />
+<img width="1920" alt="Pasting context and prompting" src="https://github.com/user-attachments/assets/b273215a-28f5-4ab8-8f00-3fc2a444a09f" />
 
 ### Step 3: Apply the generated diffs
 
 The chatbot will provide the diffs in a single code block. Copy them, and click "Apply Diffs" to apply them.
 
-<img width="1920" alt="Applying diffs" src="https://github.com/user-attachments/assets/25c1aac5-82d0-4cb9-9e1e-1008f8faedcf" />
+<img width="1152" alt="Applying diffs" src="https://github.com/user-attachments/assets/881f3a25-8d73-4376-8890-c89fb0157614" />
 
 ### Optional step (before step 3): Add more files to the context
 
