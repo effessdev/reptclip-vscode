@@ -10,7 +10,7 @@ import { readFileSync } from "node:fs";
 };
 
 const { buildMarkdown } =
-  require("../src/core/markdownBuilder") as typeof import("../src/core/markdownBuilder");
+  require("./markdownBuilder") as typeof import("./markdownBuilder");
 
 test("buildMarkdown omits file sections when includeFiles is false", () => {
   const markdown = buildMarkdown({
