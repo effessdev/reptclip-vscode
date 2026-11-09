@@ -222,7 +222,7 @@ export class ReptclipViewProvider implements vscode.WebviewViewProvider {
               const clipboardText = await readClipboard();
               if (!clipboardText.trim()) {
                 throw new Error(
-                  "Clipboard is empty — copy a list of file paths first.",
+                  "Clipboard is empty. Please copy the list of the file paths first.",
                 );
               }
 
@@ -275,7 +275,7 @@ export class ReptclipViewProvider implements vscode.WebviewViewProvider {
               const clipboardText = await readClipboard();
               if (!clipboardText.trim()) {
                 throw new Error(
-                  "Clipboard is empty — copy a Search/Replace diff first.",
+                  "Clipboard is empty. Please copy a Search/Replace diff first.",
                 );
               }
 
@@ -304,7 +304,7 @@ export class ReptclipViewProvider implements vscode.WebviewViewProvider {
                     alreadyApplied: true,
                   });
                   vscode.window.setStatusBarMessage(
-                    "ReptClip: this diff was already applied — skipping.",
+                    "ReptClip: this diff was already applied. Skipping.",
                     4000,
                   );
                   return;
@@ -324,7 +324,7 @@ export class ReptclipViewProvider implements vscode.WebviewViewProvider {
                 ...summary,
               });
               vscode.window.setStatusBarMessage(
-                `ReptClip: applied diffs — ${summary.modified} modified, ${summary.created} created, ${summary.deleted} deleted${summary.fuzzy ? ` (${summary.fuzzy} fuzzy-matched — review the changes)` : ""}`,
+                `Applied: ${summary.modified} modified, ${summary.created} created, ${summary.deleted} deleted${summary.fuzzy ? ` (${summary.fuzzy} fuzzy)` : ""}`,
                 4000,
               );
             } catch (err) {

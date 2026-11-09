@@ -480,14 +480,11 @@
       if (message.ok) {
         setStatus(
           message.alreadyApplied
-            ? "Already applied — this diff was applied before."
+            ? "This diff was already applied."
             : `Applied: ${message.modified} modified, ${message.created} created, ${message.deleted} deleted${message.fuzzy ? `, ${message.fuzzy} fuzzy` : ""}.`,
         );
       } else {
-        setStatus(
-          `Not applied — no files were changed. ${message.error}`,
-          true,
-        );
+        setStatus(`Not applied. No files were changed. ${message.error}`, true);
       }
     }
   });

@@ -255,7 +255,7 @@ function findMatch(
 
   if (ambiguous) {
     throw new Error(
-      `SEARCH block for ${file} matches multiple locations — add more context.`,
+      `SEARCH block for ${file} matches multiple locations. Please provide more context.`,
     );
   }
   throw new Error(`No match found for the SEARCH block in ${file}.`);
@@ -302,7 +302,7 @@ export async function applyDiffs(
       // Empty SEARCH: create (or keep appending to a file being created).
       if (plan.existed && plan.content.trim() !== "") {
         throw new Error(
-          `${block.file} already exists — an empty SEARCH block is only for new files.`,
+          `${block.file} already exists. An empty SEARCH block is only for new files.`,
         );
       }
       plan.content += block.replace;
