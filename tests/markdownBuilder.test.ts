@@ -1,7 +1,16 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 
-import { buildMarkdown } from "./markdownBuilder";
+(require as any).extensions[".md"] = (module: any, filename: string) => {
+  module._compile(
+    `module.exports = ${JSON.stringify(readFileSync(filename, "utf8"))};`,
+    filename,
+  );
+};
+
+const { buildMarkdown } =
+  require("../src/core/markdownBuilder") as typeof import("../src/core/markdownBuilder");
 
 test("buildMarkdown omits file sections when includeFiles is false", () => {
   const markdown = buildMarkdown({

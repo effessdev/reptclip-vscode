@@ -18,3 +18,5 @@ To produce an installable `.vsix`:
 npm run build
 npx vsce package
 ```
+
+Run `npm test` to run the tests.

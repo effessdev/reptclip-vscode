@@ -52,6 +52,7 @@
     "build": "node esbuild.js --production",
     "watch": "node esbuild.js --watch",
     "compile": "tsc --noEmit -p ./",
+    "test": "tsx --test tests/**/*.test.ts",
     "package": "vsce package"
   },
   "devDependencies": {
@@ -59,6 +60,7 @@
     "@types/node": "^20.14.0",
     "@types/vscode": "^1.85.0",
     "esbuild": "^0.23.0",
+    "tsx": "^4.19.2",
     "typescript": "^5.5.0"
   },
   "dependencies": {
