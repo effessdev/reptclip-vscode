@@ -4,7 +4,7 @@ How ReptClip is put together. This document is for anything editing the code —
 human developers and AI agents alike. It maps every module to a single job,
 shows how they wire together, and calls out the invariants that keep the design
 safe and readable, so you can make a correct edit without loading the whole
-codebase first. For what the extension *does* from a user's point of view, see
+codebase first. For what the extension _does_ from a user's point of view, see
 [README.md](README.md).
 
 ## Layers
@@ -41,15 +41,15 @@ Each entry names the file, its single job, and whether it imports `vscode`.
 
 - **`src/extension.ts`** — `activate`/`deactivate`. Registers the view provider
   with `retainContextWhenHidden` so switching panel tabs doesn't wipe unsaved
-  edits. Wires nothing else and holds no timers or watchers. *(no vscode
-  beyond registration)*
+  edits. Wires nothing else and holds no timers or watchers. _(no vscode
+  beyond registration)_
 - **`src/panel/ReptclipViewProvider.ts`** — The orchestrator. See Layers above;
-  it is the only module that connects the core pieces. *(uses vscode)*
+  it is the only module that connects the core pieces. _(uses vscode)_
 - **`src/panel/getHtml.ts`** — Produces the webview's static HTML: a
   Content-Security-Policy with a per-load nonce, links to `webview-ui` assets,
   and the DOM the UI script binds to (checkboxes, include/exclude textareas with
-  backdrop layers, output box, action buttons, suggestion dropdown). *(uses
-  vscode)*
+  backdrop layers, output box, action buttons, suggestion dropdown). _(uses
+  vscode)_
 
 ### Webview UI (browser sandbox)
 
@@ -65,8 +65,8 @@ Each entry names the file, its single job, and whether it imports `vscode`.
 ### Core logic
 
 - **`core/types.ts`** — The shared vocabulary: `UiState` (every panel control,
-  also the persisted shape), `GenerateResult`, and the two message unions that
-  form the host↔webview protocol. Pure.
+  including the `Files` checkbox, also the persisted shape), `GenerateResult`,
+  and the two message unions that form the host↔webview protocol. Pure.
 - **`core/tokenizer.ts`** — Splits a textarea value into glob/path tokens:
   whitespace-separated, with single/double quotes letting a token contain
   spaces. This is the "no shell quoting" fix over the original CLI. Pure.
@@ -75,7 +75,7 @@ Each entry names the file, its single job, and whether it imports `vscode`.
   skipping `.git` and symlinks. `createEmbeddingGuard` is the single chokepoint
   that decides whether one relative path may be read into context. Pure.
 - **`core/patternMatcher.ts`** — `selectFiles` runs include patterns first, then
-  exclude narrows them, ordering by *last matching include* so specific patterns
+  exclude narrows them, ordering by _last matching include_ so specific patterns
   land nearest the Prompt. `matchesAnyFile` answers "does this one pattern hit
   anything" for highlighting. Both use `micromatch`. Pure.
 - **`core/fileGuards.ts`** — `readFileSafe` returns a placeholder instead of
@@ -86,10 +86,11 @@ Each entry names the file, its single job, and whether it imports `vscode`.
   in three bands: path-prefix, then basename-prefix, then fuzzy subsequence.
   Pure.
 - **`core/markdownBuilder.ts`** — Assembles the final Markdown sections —
-  `# Project structure`, `## Output format` (the inlined `diff-format.md`), one
-  `# <path>` block per file, and `# Prompt` — from already-read contents. Pure
-  string formatting.
-- **`core/generateContext.ts`** — Orchestrates *building* context:
+  `# Project structure`, `## Output format` (the inlined `diff-format.md`),
+  optional `# <path>` blocks for the selected files, and `# Prompt` — from
+  already-read contents. The `Files` toggle turns that file-block loop on and
+  off without changing the other context sections. Pure string formatting.
+- **`core/generateContext.ts`** — Orchestrates _building_ context:
   `generateContext` (scan → tokenize → select → read → build, with all sections)
   and `moreFiles` (parse a clipboard path list, validate every path up front,
   embed only those files with no scaffolding). Both funnel through one internal
@@ -98,16 +99,16 @@ Each entry names the file, its single job, and whether it imports `vscode`.
   and applies them. All blocks are simulated into per-file plans first
   (all-or-nothing), then committed as a single `WorkspaceEdit`, auto-saved, and
   opened in the editor. Includes the whitespace-lenient match ladder and the
-  path-escape guard. *(uses
-  vscode: WorkspaceEdit)*
+  path-escape guard. _(uses
+  vscode: WorkspaceEdit)_
 - **`core/clipboard.ts`** — Thin wrapper over `vscode.env.clipboard`
-  read/write. *(uses vscode)*
+  read/write. _(uses vscode)_
 - **`core/outputWriter.ts`** — Writes generated Markdown to an optional output
   file (blank means don't write; relative paths resolve against the project
   root). Pure.
 - **`core/projectStorage.ts`** — Persists panel state and the last-applied diff
   fingerprint in `globalState`, keyed by the project's absolute path so it
-  survives restarts and multi-root setups. *(uses vscode)*
+  survives restarts and multi-root setups. _(uses vscode)_
 
 Two supporting assets: `src/global.d.ts` declares the `*.md` text-import type
 used by `markdownBuilder.ts`, and `src/core/diff-format.md` is the instruction
@@ -141,9 +142,11 @@ From host to webview:
 **Generate** — The webview posts `run` with the current state. The host saves the
 state, then runs `generateContext`: scan non-ignored files, tokenize the
 include/exclude boxes, `selectFiles`, read each file through the embedding guard
-and `readFileSafe`, then `buildMarkdown`. The result is copied to the clipboard
-and/or written to the output file per the checkboxes, and a `runResult` plus a
-status-bar line report the file count.
+and `readFileSafe`, then `buildMarkdown`. The `Files` checkbox is a gate on the
+file block loop, so disabling it strips file contents while leaving project
+structure, output-format, and prompt sections alone. The result is copied to the
+clipboard and/or written to the output file per the checkboxes, and a
+`runResult` plus a status-bar line report the file count.
 
 **More Files** — Reads a newline list of relative paths from the clipboard (the
 sandbox can't). `moreFiles` parses it into a deduped ordered list, then
@@ -154,7 +157,7 @@ structure, output-format, or prompt sections, so a mid-conversation supplement
 pastes cleanly over context the chatbot has already seen.
 
 **Apply Diffs** — Reads Search/Replace blocks from the clipboard.
-`fingerprintDiff` hashes the *parsed* blocks (so line-ending and fence
+`fingerprintDiff` hashes the _parsed_ blocks (so line-ending and fence
 differences don't change the hash); if it matches the last-applied fingerprint
 for this project, the host prompts to confirm before re-applying. Otherwise
 `applyDiffs` parses blocks with a line-state machine, resolves each path

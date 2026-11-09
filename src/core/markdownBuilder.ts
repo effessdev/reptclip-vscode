@@ -4,6 +4,7 @@ export interface BuildMarkdownInput {
   fileContents: Record<string, string>;
   includeStructure: boolean;
   includeDiffFormat: boolean;
+  includeFiles: boolean;
   includePromptTail: boolean;
 }
 
@@ -35,9 +36,11 @@ export function buildMarkdown(input: BuildMarkdownInput): string {
     parts.push(DIFF_FORMAT_SECTION);
   }
 
-  for (const file of input.includedFiles) {
-    const content = input.fileContents[file] ?? "";
-    parts.push(`# ${file}\n\n\`\`\`\n${content}\n\`\`\``);
+  if (input.includeFiles) {
+    for (const file of input.includedFiles) {
+      const content = input.fileContents[file] ?? "";
+      parts.push(`# ${file}\n\n\`\`\`\n${content}\n\`\`\``);
+    }
   }
 
   if (input.includePromptTail) {

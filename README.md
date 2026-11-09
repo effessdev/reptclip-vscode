@@ -106,7 +106,7 @@ Copy the above code block and click "Apply Diffs" in the ReptClip panel to apply
 ### Formatting Rules
 
 1. **File Headers:** Every set of edits must begin with the exact relative file path on its own line (e.g., `path/to/file.ext`), even if there is only a single file in the project.
-2. **Exact Matching:** The `SEARCH` block must contain an *exact, verbatim* copy of existing code, including identical whitespace, indentation, and surrounding context lines to uniquely identify the match. Otherwise, the tool will not apply the diff.
+2. **Exact Matching:** The `SEARCH` block must contain an _exact, verbatim_ copy of existing code, including identical whitespace, indentation, and surrounding context lines to uniquely identify the match. Otherwise, the tool will not apply the diff.
 3. **Uniqueness:** Provide sufficient surrounding unchanged lines in the `SEARCH` block to ensure it matches exactly **one** location in the target file.
 4. **New Files & Deletions:**
    - To create a new file, use an empty `SEARCH` block.
@@ -116,7 +116,7 @@ Copy the above code block and click "Apply Diffs" in the ReptClip panel to apply
 
 ### Example
 
-````
+```
 src/models/user.py
 <<<<<<< SEARCH
 class User:
@@ -174,7 +174,7 @@ config/legacy.json
 }
 =======
 >>>>>>> REPLACE
-````
+```
 
 # AGENTS.md
 
@@ -187,7 +187,7 @@ Do not make mistakes.
 <- Cursor lands here. You can quickly start typing.
 `````
 
-**Enter inside any input runs Generate**, so you never have to reach for the button; while the suggestion dropdown is open, Enter/Tab *accepts* the highlighted file instead, and `Shift + Enter` always inserts a newline.
+**Enter inside any input runs Generate**, so you never have to reach for the button; while the suggestion dropdown is open, Enter/Tab _accepts_ the highlighted file instead, and `Shift + Enter` always inserts a newline.
 
 You can uncheck "Copy to clipboard" to turn it off.
 
@@ -243,7 +243,7 @@ Here's what actually happens, in order:
 
 1. **Parsing is line-by-line and forgiving where it should be, strict where it must be.** Each line is trimmed and treated as one relative path. Empty lines (including runs of consecutive newlines) are skipped the way Python's `str.split()` skips empty pieces, and duplicates collapse to their first occurrence. The order you pasted is the order they're embedded in.
 2. **Pre-flight validation, all-or-nothing.** Before a single file is read, every path clears the embedding guard and is `fs.stat`-ed against the workspace root. Anything unacceptable fails the check: not found, a directory rather than a file, ignored by `.gitignore`, inside `.git`, absolute, or resolving outside the project root. Nothing is copied, nothing is written, no half-baked context reaches your clipboard; instead the panel names each offender and why, e.g. `Cannot embed: src/secret.env (ignored by .gitignore), old.py (not found)`. You fix the list and click again.
-3. **Only then does it build.** The surviving paths are read through the shared pipeline (1 MB limit, binary detection, descriptive placeholders) and formatted by the same Markdown builder used by Generate — but with only the file sections: the Project structure / Output format / Prompt tail checkboxes are deliberately not applied, since those were already sent when you first generated the context.
+3. **Only then does it build.** The surviving paths are read through the shared pipeline (1 MB limit, binary detection, descriptive placeholders) and formatted by the same Markdown builder used by Generate — but with only the file sections: the Project structure / Output format / Prompt section checkboxes are deliberately not applied, since those were already sent when you first generated the context.
 
 ## Other notable features
 

@@ -8,6 +8,7 @@ export interface UiState {
   clipboard: boolean;
   projectStructure: boolean;
   diffFormat: boolean;
+  files: boolean;
   promptTail: boolean;
   outputFile: string;
 }
@@ -19,6 +20,7 @@ export function defaultUiState(): UiState {
     clipboard: true,
     projectStructure: true,
     diffFormat: true,
+    files: true,
     promptTail: true,
     outputFile: "",
   };

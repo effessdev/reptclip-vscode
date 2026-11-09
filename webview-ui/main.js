@@ -9,6 +9,7 @@
     clipboard: document.getElementById("clipboard"),
     structure: document.getElementById("structure"),
     diffFormat: document.getElementById("diffFormat"),
+    files: document.getElementById("files"),
     promptTail: document.getElementById("promptTail"),
     output: document.getElementById("output"),
     runBtn: document.getElementById("runBtn"),
@@ -145,6 +146,7 @@
       clipboard: els.clipboard.checked,
       projectStructure: els.structure.checked,
       diffFormat: els.diffFormat.checked,
+      files: els.files.checked,
       promptTail: els.promptTail.checked,
       outputFile: els.output.value,
     };
@@ -403,11 +405,15 @@
   });
 
   els.output.addEventListener("input", persistDebounced);
-  [els.clipboard, els.structure, els.diffFormat, els.promptTail].forEach(
-    (el) => {
-      el.addEventListener("change", persist);
-    },
-  );
+  [
+    els.clipboard,
+    els.structure,
+    els.diffFormat,
+    els.files,
+    els.promptTail,
+  ].forEach((el) => {
+    el.addEventListener("change", persist);
+  });
 
   els.runBtn.addEventListener("click", run);
   els.moreFilesBtn.addEventListener("click", moreFilesFromClipboard);
@@ -432,6 +438,7 @@
       els.clipboard.checked = !!s.clipboard;
       els.structure.checked = !!s.projectStructure;
       els.diffFormat.checked = !!s.diffFormat;
+      els.files.checked = s.files !== undefined ? !!s.files : true;
       els.promptTail.checked = !!s.promptTail;
       els.output.value = s.outputFile ?? "";
       els.warning.hidden = message.hasWorkspace;

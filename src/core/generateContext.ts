@@ -18,13 +18,16 @@ export async function generateContext(
 
   const includePatterns = tokenize(state.include);
   const excludePatterns = tokenize(state.exclude);
-  const includedFiles = selectFiles(allFiles, includePatterns, excludePatterns);
+  const includedFiles = state.files
+    ? selectFiles(allFiles, includePatterns, excludePatterns)
+    : [];
 
   return buildContext(
     rootDir,
     {
       includeStructure: state.projectStructure,
       includeDiffFormat: state.diffFormat,
+      includeFiles: state.files,
       includePromptTail: state.promptTail,
     },
     includedFiles,
@@ -47,7 +50,22 @@ export async function generateContext(
 export async function moreFiles(
   rootDir: string,
   pathList: string,
+  includeFiles: boolean = true,
 ): Promise<GenerateResult> {
+  if (!includeFiles) {
+    return buildContext(
+      rootDir,
+      {
+        includeStructure: false,
+        includeDiffFormat: false,
+        includeFiles: false,
+        includePromptTail: false,
+      },
+      [],
+      [],
+    );
+  }
+
   const includedFiles = parsePathList(pathList);
 
   // Validate before touching the clipboard/output: if any listed path can't be
@@ -64,6 +82,7 @@ export async function moreFiles(
     {
       includeStructure: false,
       includeDiffFormat: false,
+      includeFiles: true,
       includePromptTail: false,
     },
     includedFiles,
@@ -126,6 +145,7 @@ async function findRejectedPaths(
 interface SectionOptions {
   includeStructure: boolean;
   includeDiffFormat: boolean;
+  includeFiles: boolean;
   includePromptTail: boolean;
 }
 
@@ -167,6 +187,7 @@ async function buildContext(
     fileContents,
     includeStructure: options.includeStructure,
     includeDiffFormat: options.includeDiffFormat,
+    includeFiles: options.includeFiles,
     includePromptTail: options.includePromptTail,
   });
 

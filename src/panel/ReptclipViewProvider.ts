@@ -226,8 +226,12 @@ export class ReptclipViewProvider implements vscode.WebviewViewProvider {
                 );
               }
 
-              const result = await moreFiles(rootDir, clipboardText);
-              if (result.includedFiles.length === 0) {
+              const result = await moreFiles(
+                rootDir,
+                clipboardText,
+                message.state.files,
+              );
+              if (message.state.files && result.includedFiles.length === 0) {
                 throw new Error("No file paths found in the clipboard.");
               }
 

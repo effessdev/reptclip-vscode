@@ -42,8 +42,12 @@ export function getHtml(
         <span>Output format</span>
       </label>
       <label class="checkbox">
+        <input type="checkbox" id="files" />
+        <span>Files</span>
+      </label>
+      <label class="checkbox">
         <input type="checkbox" id="promptTail" />
-        <span>Prompt tail</span>
+        <span>Prompt section</span>
       </label>
     </section>
 
