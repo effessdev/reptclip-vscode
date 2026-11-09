@@ -13,9 +13,9 @@ It's a 3-step process. Ideally, put VS Code and your free chatbot side-by-side.
 
 Specify the files you want to include in the context. You can use relative paths or glob patterns. Press "Enter" or click the "Generate" button to copy the context **straight to your clipboard**.
 
-<img width="1920" height="1080" alt="Copying context" src="https://github.com/user-attachments/assets/611629e0-bf2e-4ac4-9fc9-2565e11cd024" />
+<img width="1152" alt="Copying context" src="https://github.com/user-attachments/assets/67367d63-fcb8-4951-9214-68fd5260eacf" />
 
-Besides the files you specify, the context also includes the **project structure** and instructions on how to generate the output. You can turn these things off if you want using checkboxes.
+Besides the files you specify, the context also includes the **project structure** and instructions on how to generate the output. You can enable/disable each section using checkboxes.
 
 ### Step 2: Paste context into your chatbot, along with your prompt
 
