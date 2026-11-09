@@ -49,13 +49,14 @@ The generated context has the following sections (**each one can be toggled ON o
 
 - **Project structure:** lists the relative paths to all files in the project that have not been ignored using `.gitignore`.
 - **Output format:** contains the instructions regarding how to generate the output.
-- **Prompt:** An empty `# Prompt\n\n` section to type in your prompt.
+- **Files:** the files you included in the context.
+- **Prompt section:** an empty `# Prompt\n\n` section to type in your prompt.
 
 The included files are placed between the "Output format" section and the "Prompt" section. You can include files to the context by either entering the relative paths of them or a matching glob pattern in the **Files to include** textarea, separated by spaces. Mid-conversation additions are handled by the **More Files** button (see [Adding files to context](#adding-files-to-context)).
 
 Example generated context (only `AGENTS.md` is included):
 
-`````markdown
+````markdown
 # Project structure
 
 ```
@@ -185,7 +186,7 @@ Do not make mistakes.
 # Prompt
 
 <- Cursor lands here. You can quickly start typing.
-`````
+````
 
 **Enter inside any input runs Generate**, so you never have to reach for the button; while the suggestion dropdown is open, Enter/Tab _accepts_ the highlighted file instead, and `Shift + Enter` always inserts a newline.
 
