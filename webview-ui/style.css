@@ -41,7 +41,7 @@ body {
   --pattern-split: 50%;
   display: flex;
   align-items: stretch;
-  gap: 8px;
+  gap: 0px;
   min-width: 0;
   margin-bottom: 10px;
 }
@@ -63,33 +63,28 @@ body {
 
 .pattern-divider {
   position: relative;
-  flex: 0 0 8px;
-  width: 8px;
+  flex: 0 0 10px;
+  width: 10px;
   cursor: col-resize;
   user-select: none;
   align-self: stretch;
-  border-left: 1px solid
-    var(--vscode-panel-border, var(--vscode-input-border, transparent));
-  border-right: 1px solid
-    var(--vscode-panel-border, var(--vscode-input-border, transparent));
-  background: color-mix(
-    in srgb,
-    var(--vscode-panel-border, var(--vscode-input-border, transparent)) 40%,
-    transparent
-  );
+  border: 0;
+  background: transparent;
+  transition: background-color 120ms ease;
 }
 
 .pattern-divider::before {
   content: "";
   position: absolute;
-  top: 22%;
-  bottom: 22%;
-  left: 50%;
-  width: 2px;
-  transform: translateX(-50%);
-  border-radius: 999px;
-  background: var(--vscode-foreground, #c5c5c5);
-  opacity: 0.5;
+  inset: 0 3px;
+  border-radius: 2px;
+  background: transparent;
+  transition: background-color 120ms ease;
+}
+
+.pattern-divider:hover::before,
+.pattern-divider:active::before {
+  background: var(--vscode-focusBorder, rgba(255, 255, 255, 0.4));
 }
 
 .section > label {
