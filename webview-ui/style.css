@@ -22,6 +22,36 @@ body {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(
+      --vscode-scrollbarSlider-background,
+      rgba(128, 128, 128, 0.6)
+    )
+    transparent;
+}
+
+.content::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.content::-webkit-scrollbar-thumb {
+  background: var(
+    --vscode-scrollbarSlider-background,
+    rgba(128, 128, 128, 0.6)
+  );
+  border-radius: 999px;
+}
+
+.content::-webkit-scrollbar-thumb:hover {
+  background: var(
+    --vscode-scrollbarSlider-hoverBackground,
+    rgba(128, 128, 128, 0.8)
+  );
 }
 
 .warning {
