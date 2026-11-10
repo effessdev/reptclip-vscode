@@ -37,6 +37,61 @@ body {
   margin-bottom: 10px;
 }
 
+.pattern-pair {
+  --pattern-split: 50%;
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  min-width: 0;
+  margin-bottom: 10px;
+}
+
+.pattern-column {
+  flex: 1 1 0;
+  min-width: 0;
+  margin-bottom: 0;
+}
+
+.pattern-column--include {
+  flex-basis: calc(var(--pattern-split) - 4px);
+  max-width: calc(var(--pattern-split) - 4px);
+}
+
+.pattern-column--exclude {
+  flex-basis: calc(100% - var(--pattern-split) - 4px);
+}
+
+.pattern-divider {
+  position: relative;
+  flex: 0 0 8px;
+  width: 8px;
+  cursor: col-resize;
+  user-select: none;
+  align-self: stretch;
+  border-left: 1px solid
+    var(--vscode-panel-border, var(--vscode-input-border, transparent));
+  border-right: 1px solid
+    var(--vscode-panel-border, var(--vscode-input-border, transparent));
+  background: color-mix(
+    in srgb,
+    var(--vscode-panel-border, var(--vscode-input-border, transparent)) 40%,
+    transparent
+  );
+}
+
+.pattern-divider::before {
+  content: "";
+  position: absolute;
+  top: 22%;
+  bottom: 22%;
+  left: 50%;
+  width: 2px;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: var(--vscode-foreground, #c5c5c5);
+  opacity: 0.5;
+}
+
 .section > label {
   display: block;
   font-weight: 600;
@@ -63,6 +118,25 @@ textarea:focus,
 input[type="text"]:focus {
   outline: 1px solid var(--vscode-focusBorder);
   outline-offset: -1px;
+}
+
+@media (max-width: 700px) {
+  .pattern-pair {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .pattern-column,
+  .pattern-column--include,
+  .pattern-column--exclude {
+    flex-basis: auto;
+    max-width: none;
+    width: 100%;
+  }
+
+  .pattern-divider {
+    display: none;
+  }
 }
 
 /* Token highlighting for the include/exclude boxes. The backdrop mirrors the

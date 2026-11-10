@@ -6,6 +6,7 @@
   const els = {
     include: document.getElementById("include"),
     exclude: document.getElementById("exclude"),
+    patternPair: document.getElementById("pattern-pair"),
     includeSection: document.getElementById("include-section"),
     excludeSection: document.getElementById("exclude-section"),
     clipboard: document.getElementById("clipboard"),
@@ -183,8 +184,13 @@
 
   function updateFileControlsVisibility() {
     const shouldShow = els.files.checked;
+    els.patternPair.hidden = !shouldShow;
     els.includeSection.hidden = !shouldShow;
     els.excludeSection.hidden = !shouldShow;
+  }
+
+  function clamp(value, min, max) {
+    return Math.min(max, Math.max(min, value));
   }
 
   function run() {
@@ -410,6 +416,38 @@
         editor.backdrop.scrollTop = el.scrollTop;
       }
     });
+  });
+
+  const divider = document.querySelector(".pattern-divider");
+  let isResizing = false;
+
+  if (divider) {
+    divider.addEventListener("pointerdown", (event) => {
+      if (window.matchMedia("(max-width: 700px)").matches) {
+        return;
+      }
+      isResizing = true;
+      event.preventDefault();
+      divider.setPointerCapture?.(event.pointerId);
+    });
+  }
+
+  window.addEventListener("pointermove", (event) => {
+    if (!isResizing || !els.patternPair) {
+      return;
+    }
+
+    const rect = els.patternPair.getBoundingClientRect();
+    const split = clamp(
+      ((event.clientX - rect.left) / rect.width) * 100,
+      25,
+      75,
+    );
+    els.patternPair.style.setProperty("--pattern-split", `${split}%`);
+  });
+
+  window.addEventListener("pointerup", () => {
+    isResizing = false;
   });
 
   els.output.addEventListener("input", persistDebounced);

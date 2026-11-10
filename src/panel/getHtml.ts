@@ -51,31 +51,35 @@ export function getHtml(
       </label>
     </section>
 
-    <section id="include-section" class="section">
-      <label for="include">Files to include (separated by spaces, glob patterns supported)</label>
-      <div class="pattern-editor">
-        <div id="include-backdrop" class="pattern-backdrop" aria-hidden="true"></div>
-        <textarea
-          id="include"
-          rows="2"
-          spellcheck="false"
-          placeholder='AGENTS.md src/**/*.py "name with space.md"'
-        ></textarea>
-      </div>
-    </section>
+    <div id="pattern-pair" class="pattern-pair">
+      <section id="include-section" class="section pattern-column pattern-column--include">
+        <label for="include">Files to include (separated by spaces, glob patterns supported)</label>
+        <div class="pattern-editor">
+          <div id="include-backdrop" class="pattern-backdrop" aria-hidden="true"></div>
+          <textarea
+            id="include"
+            rows="2"
+            spellcheck="false"
+            placeholder='AGENTS.md src/**/*.py "name with space.md"'
+          ></textarea>
+        </div>
+      </section>
 
-    <section id="exclude-section" class="section">
-      <label for="exclude">Files to exclude from included files</label>
-      <div class="pattern-editor">
-        <div id="exclude-backdrop" class="pattern-backdrop" aria-hidden="true"></div>
-        <textarea
-          id="exclude"
-          rows="2"
-          spellcheck="false"
-          placeholder="src/secret.py"
-        ></textarea>
-      </div>
-    </section>
+      <div class="pattern-divider" aria-hidden="true" title="Drag to resize include/exclude columns"></div>
+
+      <section id="exclude-section" class="section pattern-column pattern-column--exclude">
+        <label for="exclude">Files to exclude from included files</label>
+        <div class="pattern-editor">
+          <div id="exclude-backdrop" class="pattern-backdrop" aria-hidden="true"></div>
+          <textarea
+            id="exclude"
+            rows="2"
+            spellcheck="false"
+            placeholder="src/secret.py"
+          ></textarea>
+        </div>
+      </section>
+    </div>
 
     <section class="section checkboxes">
       <label class="output-file">
