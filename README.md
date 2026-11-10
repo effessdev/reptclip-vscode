@@ -216,6 +216,10 @@ If you have turned on the "Output format" section, the AI will generate the diff
 
 **Applied files are saved automatically**, and each file's regular undo (`Ctrl + Z`) still works.
 
+### Undo and redo applied diffs
+
+Next to the status message, **Undo** and **Redo** buttons step backward and forward through your last 10 applied diffs (each "Apply Diffs" click counts as one checkpoint). Undo restores every file touched by that diff to its exact pre-apply state — including recreating a file the diff deleted, or deleting one it created — and Redo reverses that. Both buttons are greyed out when there's nothing to step to. This history is kept in memory for the current VS Code session, separately from your regular per-file `Ctrl + Z` undo, and from the single remembered "already applied" fingerprint used to warn against re-applying the same diff.
+
 ## Adding files to context
 
 ### Up front: the pattern textareas

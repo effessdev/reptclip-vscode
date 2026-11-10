@@ -37,7 +37,8 @@ Three layers:
 - `diffApplier.ts`
   - `parseDiffBlocks(text: string): DiffBlock[]` — Parses SEARCH/REPLACE blocks into structured file edits.
   - `fingerprintDiff(text: string): string` — Creates a stable hash for deduplicating already-applied diffs.
-  - `applyDiffs(rootDir: string, text: string): Promise<ApplySummary>` — Validates and applies diff blocks atomically to the workspace.
+  - `applyDiffs(rootDir: string, text: string): Promise<ApplyResult>` — Validates and applies diff blocks atomically to the workspace, returning a checkpoint for undo.
+  - `applySnapshot(rootDir: string, files: FileSnapshot[], direction: "undo" | "redo"): Promise<ApplySummary>` — Restores a checkpoint's before/after file contents to support undo and redo.
 - `fileGuards.ts`
   - `readFileSafe(absPath: string): Promise<SafeReadResult>` — Reads files defensively, skipping binary or oversized content.
 - `generateContext.ts`

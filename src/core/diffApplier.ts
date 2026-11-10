@@ -32,6 +32,28 @@ export interface ApplySummary {
   fuzzy: number;
 }
 
+/**
+ * The before/after content of a single file touched by an apply, keyed by
+ * its workspace-relative path. `undefined` stands for "file does not exist"
+ * on that side, so a snapshot can represent a creation or a deletion as well
+ * as a plain content change.
+ */
+export interface FileSnapshot {
+  relPath: string;
+  before: string | undefined;
+  after: string | undefined;
+}
+
+/** One applied diff's worth of undo/redo information. */
+export interface Checkpoint {
+  files: FileSnapshot[];
+}
+
+export interface ApplyResult extends ApplySummary {
+  /** Lets the caller push this apply onto an undo stack. */
+  checkpoint: Checkpoint;
+}
+
 const SEARCH_MARKER = "<<<<<<< SEARCH";
 const SEPARATOR = "=======";
 const REPLACE_MARKER = ">>>>>>> REPLACE";
@@ -263,72 +285,25 @@ function findMatch(
 
 interface FilePlan {
   absPath: string;
+  /** Workspace-relative path (forward slashes), used to key a checkpoint. */
+  relPath: string;
   existed: boolean;
+  /** The file's content before this operation, if it existed. */
+  original: string | undefined;
   content: string;
   deleted: boolean;
 }
 
-export async function applyDiffs(
-  rootDir: string,
-  text: string,
-): Promise<ApplySummary> {
-  const blocks = parseDiffBlocks(text);
-  if (blocks.length === 0) {
-    throw new Error("Clipboard does not contain any SEARCH/REPLACE blocks.");
-  }
-
-  // Simulate every block, in order, per file so all validation happens
-  // before anything touches disk.
-  const plans = new Map<string, FilePlan>();
-  let fuzzy = 0;
-  for (const block of blocks) {
-    const absPath = resolveFile(rootDir, block.file);
-    let plan = plans.get(absPath);
-    if (!plan) {
-      const original = await readFileIfExists(absPath);
-      plan = {
-        absPath,
-        existed: original !== undefined,
-        content: original ?? "",
-        deleted: false,
-      };
-      plans.set(absPath, plan);
-    }
-    if (plan.deleted) {
-      throw new Error(`Diff edits ${block.file} after it was deleted.`);
-    }
-
-    if (block.search === "") {
-      // Empty SEARCH: create (or keep appending to a file being created).
-      if (plan.existed && plan.content.trim() !== "") {
-        throw new Error(
-          `${block.file} already exists. An empty SEARCH block is only for new files.`,
-        );
-      }
-      plan.content += block.replace;
-      continue;
-    }
-
-    const {
-      index,
-      text,
-      replace,
-      fuzzy: lenient,
-    } = findMatch(plan.content, block.search, block.replace, block.file);
-    if (lenient) {
-      fuzzy++;
-    }
-    plan.content =
-      plan.content.slice(0, index) +
-      replace +
-      plan.content.slice(index + text.length);
-
-    // Empty REPLACE that wipes the whole file deletes it (format rule 4).
-    if (block.replace === "" && plan.existed && plan.content.trim() === "") {
-      plan.deleted = true;
-    }
-  }
-
+/**
+ * Turns a set of file plans into disk changes via a single workspace edit:
+ * creates, modifies, or deletes each file, saves the dirty buffers it
+ * touched, and reveals them in the editor. Shared by `applyDiffs` (acting on
+ * freshly matched SEARCH/REPLACE results) and `applySnapshot` (acting on a
+ * stored checkpoint for undo/redo), so both paths commit changes identically.
+ */
+async function commitPlans(
+  plans: Iterable<FilePlan>,
+): Promise<{ modified: number; created: number; deleted: number }> {
   const edit = new vscode.WorkspaceEdit();
   let modified = 0;
   let created = 0;
@@ -336,13 +311,13 @@ export async function applyDiffs(
   // Files whose edits land in an in-memory document buffer; saved below so the
   // user doesn't have to press Save on each one. Deletions need no save.
   const touched: vscode.Uri[] = [];
-  for (const plan of plans.values()) {
+  for (const plan of plans) {
     const uri = vscode.Uri.file(plan.absPath);
     if (plan.deleted) {
-      edit.deleteFile(uri);
+      edit.deleteFile(uri, { ignoreIfNotExists: true });
       deleted++;
     } else if (!plan.existed) {
-      edit.createFile(uri);
+      edit.createFile(uri, { overwrite: true });
       edit.insert(uri, new vscode.Position(0, 0), plan.content);
       created++;
       touched.push(uri);
@@ -383,5 +358,136 @@ export async function applyDiffs(
     await vscode.window.showTextDocument(touched[0], { preview: false });
   }
 
-  return { modified, created, deleted, fuzzy };
+  return { modified, created, deleted };
+}
+
+export async function applyDiffs(
+  rootDir: string,
+  text: string,
+): Promise<ApplyResult> {
+  const blocks = parseDiffBlocks(text);
+  if (blocks.length === 0) {
+    throw new Error("Clipboard does not contain any SEARCH/REPLACE blocks.");
+  }
+
+  // Simulate every block, in order, per file so all validation happens
+  // before anything touches disk.
+  const plans = new Map<string, FilePlan>();
+  let fuzzy = 0;
+  for (const block of blocks) {
+    const absPath = resolveFile(rootDir, block.file);
+    let plan = plans.get(absPath);
+    if (!plan) {
+      const original = await readFileIfExists(absPath);
+      plan = {
+        absPath,
+        relPath: path
+          .relative(path.resolve(rootDir), absPath)
+          .split(path.sep)
+          .join("/"),
+        existed: original !== undefined,
+        original,
+        content: original ?? "",
+        deleted: false,
+      };
+      plans.set(absPath, plan);
+    }
+    if (plan.deleted) {
+      throw new Error(`Diff edits ${block.file} after it was deleted.`);
+    }
+
+    if (block.search === "") {
+      // Empty SEARCH: create (or keep appending to a file being created).
+      if (plan.existed && plan.content.trim() !== "") {
+        throw new Error(
+          `${block.file} already exists. An empty SEARCH block is only for new files.`,
+        );
+      }
+      plan.content += block.replace;
+      continue;
+    }
+
+    const {
+      index,
+      text,
+      replace,
+      fuzzy: lenient,
+    } = findMatch(plan.content, block.search, block.replace, block.file);
+    if (lenient) {
+      fuzzy++;
+    }
+    plan.content =
+      plan.content.slice(0, index) +
+      replace +
+      plan.content.slice(index + text.length);
+
+    // Empty REPLACE that wipes the whole file deletes it (format rule 4).
+    if (block.replace === "" && plan.existed && plan.content.trim() === "") {
+      plan.deleted = true;
+    }
+  }
+
+  const snapshot: FileSnapshot[] = Array.from(plans.values()).map((plan) => ({
+    relPath: plan.relPath,
+    before: plan.existed ? plan.original : undefined,
+    after: plan.deleted ? undefined : plan.content,
+  }));
+
+  const { modified, created, deleted } = await commitPlans(plans.values());
+
+  return {
+    modified,
+    created,
+    deleted,
+    fuzzy,
+    checkpoint: { files: snapshot },
+  };
+}
+
+/**
+ * Restores a checkpoint's file contents in the given direction: "undo" sets
+ * every file back to its pre-apply content (deleting ones that didn't exist
+ * yet), "redo" re-applies the post-apply content (deleting ones the original
+ * apply had removed). Uses the current on-disk state, not the checkpoint's
+ * own `existed` bookkeeping, to decide create-vs-modify, so it still behaves
+ * sensibly if a file was touched by hand since the checkpoint was recorded.
+ */
+export async function applySnapshot(
+  rootDir: string,
+  files: FileSnapshot[],
+  direction: "undo" | "redo",
+): Promise<ApplySummary> {
+  const plans: FilePlan[] = [];
+  for (const file of files) {
+    const target = direction === "undo" ? file.before : file.after;
+    const absPath = resolveFile(rootDir, file.relPath);
+    const currentContent = await readFileIfExists(absPath);
+    const currentExists = currentContent !== undefined;
+
+    if (target === undefined) {
+      if (currentExists) {
+        plans.push({
+          absPath,
+          relPath: file.relPath,
+          existed: true,
+          original: currentContent,
+          content: "",
+          deleted: true,
+        });
+      }
+      continue;
+    }
+
+    plans.push({
+      absPath,
+      relPath: file.relPath,
+      existed: currentExists,
+      original: currentContent,
+      content: target,
+      deleted: false,
+    });
+  }
+
+  const { modified, created, deleted } = await commitPlans(plans);
+  return { modified, created, deleted, fuzzy: 0 };
 }

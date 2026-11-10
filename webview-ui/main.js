@@ -18,6 +18,8 @@
     runBtn: document.getElementById("runBtn"),
     applyBtn: document.getElementById("applyBtn"),
     moreFilesBtn: document.getElementById("moreFilesBtn"),
+    undoBtn: document.getElementById("undoBtn"),
+    redoBtn: document.getElementById("redoBtn"),
     status: document.getElementById("status"),
     warning: document.getElementById("warning"),
     suggest: document.getElementById("suggest"),
@@ -220,6 +222,16 @@
   function applyFromClipboard() {
     setStatus("Applying…");
     vscode.postMessage({ type: "applyDiffs" });
+  }
+
+  function undo() {
+    setStatus("Undoing…");
+    vscode.postMessage({ type: "undo" });
+  }
+
+  function redo() {
+    setStatus("Redoing…");
+    vscode.postMessage({ type: "redo" });
   }
 
   // The host reads a list of relative file paths from the clipboard and
@@ -512,6 +524,8 @@
   els.runBtn.addEventListener("click", run);
   els.moreFilesBtn.addEventListener("click", moreFilesFromClipboard);
   els.applyBtn.addEventListener("click", applyFromClipboard);
+  els.undoBtn.addEventListener("click", undo);
+  els.redoBtn.addEventListener("click", redo);
 
   // Switching to another tab in the bottom panel fires a visibilitychange
   // before dynamic content is suspended — flush any debounced save so edits
@@ -540,6 +554,8 @@
       els.runBtn.disabled = !message.hasWorkspace;
       els.moreFilesBtn.disabled = !message.hasWorkspace;
       els.applyBtn.disabled = !message.hasWorkspace;
+      els.undoBtn.disabled = !message.hasWorkspace || !message.canUndo;
+      els.redoBtn.disabled = !message.hasWorkspace || !message.canRedo;
       editors.forEach(renderBackdrop);
       if (message.hasWorkspace) {
         requestHighlight();
@@ -581,6 +597,32 @@
       } else {
         setStatus(`Not applied. No files were changed. ${message.error}`, true);
       }
+    }
+
+    if (message.type === "undoResult") {
+      if (message.ok) {
+        setStatus(
+          `Undone: ${message.modified} modified, ${message.created} created, ${message.deleted} deleted.`,
+        );
+      } else {
+        setStatus(message.error, message.error !== "Nothing to undo.");
+      }
+    }
+
+    if (message.type === "redoResult") {
+      if (message.ok) {
+        setStatus(
+          `Redone: ${message.modified} modified, ${message.created} created, ${message.deleted} deleted.`,
+        );
+      } else {
+        setStatus(message.error, message.error !== "Nothing to redo.");
+      }
+    }
+
+    if (message.type === "undoRedoState") {
+      const hasWorkspace = !els.runBtn.disabled;
+      els.undoBtn.disabled = !hasWorkspace || !message.canUndo;
+      els.redoBtn.disabled = !hasWorkspace || !message.canRedo;
     }
   });
 })();

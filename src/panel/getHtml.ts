@@ -94,6 +94,10 @@ export function getHtml(
     <button id="moreFilesBtn" type="button" title="Read a list of relative file paths from the clipboard and embed their contents">More Files</button>
     <button id="applyBtn" type="button" title="Read Search/Replace blocks from the clipboard and apply them to the workspace">Apply Diffs</button>
     <span id="status" class="status" aria-live="polite"></span>
+    <span class="undo-redo-group">
+      <button id="undoBtn" type="button" title="Undo the last applied diff" disabled>Undo</button>
+      <button id="redoBtn" type="button" title="Redo the last undone diff" disabled>Redo</button>
+    </span>
   </div>
 
   <div id="suggest" class="suggest" role="listbox" hidden></div>

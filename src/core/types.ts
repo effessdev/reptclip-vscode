@@ -38,6 +38,8 @@ export type HostToWebviewMessage =
       type: "init";
       state: UiState;
       hasWorkspace: boolean;
+      canUndo: boolean;
+      canRedo: boolean;
     }
   | { type: "runResult"; ok: true; fileCount: number }
   | { type: "runResult"; ok: false; error: string }
@@ -51,6 +53,23 @@ export type HostToWebviewMessage =
       alreadyApplied?: boolean;
     }
   | { type: "applyResult"; ok: false; error: string }
+  | {
+      type: "undoResult";
+      ok: true;
+      modified: number;
+      created: number;
+      deleted: number;
+    }
+  | { type: "undoResult"; ok: false; error: string }
+  | {
+      type: "redoResult";
+      ok: true;
+      modified: number;
+      created: number;
+      deleted: number;
+    }
+  | { type: "redoResult"; ok: false; error: string }
+  | { type: "undoRedoState"; canUndo: boolean; canRedo: boolean }
   | { type: "suggestResult"; requestId: number; items: string[] }
   | {
       type: "highlightResult";
@@ -65,5 +84,7 @@ export type WebviewToHostMessage =
   | { type: "run"; state: UiState }
   | { type: "moreFiles"; state: UiState }
   | { type: "applyDiffs" }
+  | { type: "undo" }
+  | { type: "redo" }
   | { type: "suggest"; requestId: number; prefix: string }
   | { type: "highlight"; requestId: number; include: string; exclude: string };

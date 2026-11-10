@@ -262,9 +262,21 @@ input[type="text"]:focus {
     var(--vscode-panel-border, var(--vscode-input-border, transparent));
 }
 
+/* Pushed to the far right of the actions row, past the status message,
+   since the undo/redo pair is a secondary, out-of-the-way control. */
+.undo-redo-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+
 button#runBtn,
 button#applyBtn,
-button#moreFilesBtn {
+button#moreFilesBtn,
+button#undoBtn,
+button#redoBtn {
   background: var(--vscode-button-background);
   color: var(--vscode-button-foreground);
   border: none;
@@ -279,26 +291,34 @@ button#moreFilesBtn {
 
 button#runBtn:hover,
 button#applyBtn:hover,
-button#moreFilesBtn:hover {
+button#moreFilesBtn:hover,
+button#undoBtn:hover,
+button#redoBtn:hover {
   background: var(--vscode-button-hoverBackground);
 }
 
 /* Secondary look so "Apply Diffs" reads as a companion action
    to the primary "Generate" button. */
 button#applyBtn,
-button#moreFilesBtn {
+button#moreFilesBtn,
+button#undoBtn,
+button#redoBtn {
   background: var(--vscode-button-secondaryBackground, #3a3d41);
   color: var(--vscode-button-secondaryForeground, #ffffff);
 }
 
 button#applyBtn:hover,
-button#moreFilesBtn:hover {
+button#moreFilesBtn:hover,
+button#undoBtn:hover,
+button#redoBtn:hover {
   background: var(--vscode-button-secondaryHoverBackground, #45494e);
 }
 
 button#runBtn:disabled,
 button#applyBtn:disabled,
-button#moreFilesBtn:disabled {
+button#moreFilesBtn:disabled,
+button#undoBtn:disabled,
+button#redoBtn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }

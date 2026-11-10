@@ -8,7 +8,12 @@ import {
 } from "../core/projectStorage";
 import { generateContext, moreFiles } from "../core/generateContext";
 import { copyToClipboard, readClipboard } from "../core/clipboard";
-import { applyDiffs, fingerprintDiff } from "../core/diffApplier";
+import {
+  applyDiffs,
+  applySnapshot,
+  fingerprintDiff,
+  Checkpoint,
+} from "../core/diffApplier";
 import { writeOutputFile } from "../core/outputWriter";
 import { collectCandidates, filterCandidates } from "../core/completions";
 import { collectNonIgnoredFiles } from "../core/gitignoreScanner";
@@ -22,6 +27,20 @@ import {
 
 export class ReptclipViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = "reptclip.panelView";
+
+  /** Checkpoints are capped per project so the undo/redo stacks stay bounded. */
+  private static readonly MAX_CHECKPOINTS = 10;
+
+  /**
+   * Undo/redo checkpoints, keyed by project root. Held in memory only (not
+   * persisted via projectStorage): a checkpoint carries full before/after
+   * file contents, which is more than we want to write to globalState, and
+   * stale undo history surviving a VS Code restart would be surprising
+   * anyway. The stacks live as long as this provider instance, so they
+   * persist across the panel being hidden/shown but reset on reload.
+   */
+  private undoStacks = new Map<string, Checkpoint[]>();
+  private redoStacks = new Map<string, Checkpoint[]>();
 
   /** Cached workspace path list used for autocomplete; built on first use. */
   private candidates?: Promise<string[]>;
@@ -69,6 +88,8 @@ export class ReptclipViewProvider implements vscode.WebviewViewProvider {
       type: "init",
       state,
       hasWorkspace: !!rootDir,
+      canUndo: !!rootDir && (this.undoStacks.get(rootDir)?.length ?? 0) > 0,
+      canRedo: !!rootDir && (this.redoStacks.get(rootDir)?.length ?? 0) > 0,
     });
 
     // Computes match flags for every include/exclude token against the current
@@ -311,20 +332,27 @@ export class ReptclipViewProvider implements vscode.WebviewViewProvider {
                 }
               }
 
-              const summary = await applyDiffs(rootDir, clipboardText);
+              const result = await applyDiffs(rootDir, clipboardText);
               await saveLastAppliedFingerprint(
                 this.context,
                 rootDir,
                 fingerprint,
               );
 
+              this.pushCheckpoint(this.undoStacks, rootDir, result.checkpoint);
+              this.redoStacks.set(rootDir, []);
+
               post({
                 type: "applyResult",
                 ok: true,
-                ...summary,
+                modified: result.modified,
+                created: result.created,
+                deleted: result.deleted,
+                fuzzy: result.fuzzy,
               });
+              this.sendUndoRedoState(rootDir, post);
               vscode.window.setStatusBarMessage(
-                `Applied: ${summary.modified} modified, ${summary.created} created, ${summary.deleted} deleted${summary.fuzzy ? ` (${summary.fuzzy} fuzzy)` : ""}`,
+                `Applied: ${result.modified} modified, ${result.created} created, ${result.deleted} deleted${result.fuzzy ? ` (${result.fuzzy} fuzzy)` : ""}`,
                 4000,
               );
             } catch (err) {
@@ -333,9 +361,127 @@ export class ReptclipViewProvider implements vscode.WebviewViewProvider {
             }
             return;
           }
+
+          case "undo": {
+            if (!rootDir) {
+              vscode.window.showWarningMessage(
+                "ReptClip: open a folder first.",
+              );
+              return;
+            }
+
+            const stack = this.undoStacks.get(rootDir);
+            const checkpoint = stack?.pop();
+            if (!checkpoint) {
+              post({
+                type: "undoResult",
+                ok: false,
+                error: "Nothing to undo.",
+              });
+              return;
+            }
+
+            try {
+              const summary = await applySnapshot(
+                rootDir,
+                checkpoint.files,
+                "undo",
+              );
+              this.pushCheckpoint(this.redoStacks, rootDir, checkpoint);
+              post({
+                type: "undoResult",
+                ok: true,
+                modified: summary.modified,
+                created: summary.created,
+                deleted: summary.deleted,
+              });
+              this.sendUndoRedoState(rootDir, post);
+              vscode.window.setStatusBarMessage(
+                `ReptClip: undo — ${summary.modified} modified, ${summary.created} created, ${summary.deleted} deleted`,
+                4000,
+              );
+            } catch (err) {
+              stack?.push(checkpoint); // the undo didn't take, keep it available
+              const message_ = err instanceof Error ? err.message : String(err);
+              post({ type: "undoResult", ok: false, error: message_ });
+            }
+            return;
+          }
+
+          case "redo": {
+            if (!rootDir) {
+              vscode.window.showWarningMessage(
+                "ReptClip: open a folder first.",
+              );
+              return;
+            }
+
+            const stack = this.redoStacks.get(rootDir);
+            const checkpoint = stack?.pop();
+            if (!checkpoint) {
+              post({
+                type: "redoResult",
+                ok: false,
+                error: "Nothing to redo.",
+              });
+              return;
+            }
+
+            try {
+              const summary = await applySnapshot(
+                rootDir,
+                checkpoint.files,
+                "redo",
+              );
+              this.pushCheckpoint(this.undoStacks, rootDir, checkpoint);
+              post({
+                type: "redoResult",
+                ok: true,
+                modified: summary.modified,
+                created: summary.created,
+                deleted: summary.deleted,
+              });
+              this.sendUndoRedoState(rootDir, post);
+              vscode.window.setStatusBarMessage(
+                `ReptClip: redo — ${summary.modified} modified, ${summary.created} created, ${summary.deleted} deleted`,
+                4000,
+              );
+            } catch (err) {
+              stack?.push(checkpoint); // the redo didn't take, keep it available
+              const message_ = err instanceof Error ? err.message : String(err);
+              post({ type: "redoResult", ok: false, error: message_ });
+            }
+            return;
+          }
         }
       },
     );
+  }
+
+  /** Pushes a checkpoint onto a stack, dropping the oldest once past the cap. */
+  private pushCheckpoint(
+    stacks: Map<string, Checkpoint[]>,
+    rootDir: string,
+    checkpoint: Checkpoint,
+  ): void {
+    const stack = stacks.get(rootDir) ?? [];
+    stack.push(checkpoint);
+    if (stack.length > ReptclipViewProvider.MAX_CHECKPOINTS) {
+      stack.shift();
+    }
+    stacks.set(rootDir, stack);
+  }
+
+  /** Tells the webview whether the undo/redo buttons should be enabled. */
+  private sendUndoRedoState(
+    rootDir: string,
+    post: (message: HostToWebviewMessage) => void,
+  ): void {
+    post({
+      type: "undoRedoState",
+      canUndo: (this.undoStacks.get(rootDir)?.length ?? 0) > 0,
+      canRedo: (this.redoStacks.get(rootDir)?.length ?? 0) > 0,
+    });
   }
 
   /**
