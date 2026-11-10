@@ -6,6 +6,8 @@
   const els = {
     include: document.getElementById("include"),
     exclude: document.getElementById("exclude"),
+    includeSection: document.getElementById("include-section"),
+    excludeSection: document.getElementById("exclude-section"),
     clipboard: document.getElementById("clipboard"),
     structure: document.getElementById("structure"),
     diffFormat: document.getElementById("diffFormat"),
@@ -177,6 +179,12 @@
   function setStatus(text, isError = false) {
     els.status.textContent = text;
     els.status.classList.toggle("status--error", isError);
+  }
+
+  function updateFileControlsVisibility() {
+    const shouldShow = els.files.checked;
+    els.includeSection.hidden = !shouldShow;
+    els.excludeSection.hidden = !shouldShow;
   }
 
   function run() {
@@ -414,6 +422,10 @@
   ].forEach((el) => {
     el.addEventListener("change", persist);
   });
+  els.files.addEventListener("change", () => {
+    updateFileControlsVisibility();
+    persist();
+  });
 
   els.runBtn.addEventListener("click", run);
   els.moreFilesBtn.addEventListener("click", moreFilesFromClipboard);
@@ -441,6 +453,7 @@
       els.files.checked = s.files !== undefined ? !!s.files : true;
       els.promptTail.checked = !!s.promptTail;
       els.output.value = s.outputFile ?? "";
+      updateFileControlsVisibility();
       els.warning.hidden = message.hasWorkspace;
       els.runBtn.disabled = !message.hasWorkspace;
       els.moreFilesBtn.disabled = !message.hasWorkspace;

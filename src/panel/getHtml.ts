@@ -51,7 +51,7 @@ export function getHtml(
       </label>
     </section>
 
-    <section class="section">
+    <section id="include-section" class="section">
       <label for="include">Files to include (separated by spaces, glob patterns supported)</label>
       <div class="pattern-editor">
         <div id="include-backdrop" class="pattern-backdrop" aria-hidden="true"></div>
@@ -64,7 +64,7 @@ export function getHtml(
       </div>
     </section>
 
-    <section class="section">
+    <section id="exclude-section" class="section">
       <label for="exclude">Files to exclude from included files</label>
       <div class="pattern-editor">
         <div id="exclude-backdrop" class="pattern-backdrop" aria-hidden="true"></div>
