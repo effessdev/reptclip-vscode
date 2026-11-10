@@ -155,6 +155,23 @@
     };
   }
 
+  function isSideBySideLayout() {
+    return !window.matchMedia("(max-width: 700px)").matches;
+  }
+
+  function syncPatternFieldHeights(changedField) {
+    if (!changedField || !isSideBySideLayout()) {
+      return;
+    }
+
+    const otherField = changedField === els.include ? els.exclude : els.include;
+    const sourceHeight = changedField.clientHeight;
+
+    if (Math.abs(otherField.clientHeight - sourceHeight) > 1) {
+      otherField.style.height = `${sourceHeight}px`;
+    }
+  }
+
   function debounce(fn, waitMs) {
     let timer;
     const wrapped = (...args) => {
@@ -362,7 +379,18 @@
 
   // --- Event wiring -------------------------------------------------------
 
+  let resizeStartField = null;
+  let resizeStartHeight = 0;
+
   patternFields.forEach((el) => {
+    el.addEventListener("pointerdown", () => {
+      if (!isSideBySideLayout()) {
+        return;
+      }
+      resizeStartField = el;
+      resizeStartHeight = el.clientHeight;
+    });
+
     el.addEventListener("input", () => {
       persistDebounced();
       requestSuggestionsDebounced(el);
@@ -416,6 +444,22 @@
         editor.backdrop.scrollTop = el.scrollTop;
       }
     });
+  });
+
+  window.addEventListener("pointerup", () => {
+    if (
+      !isSideBySideLayout() ||
+      !resizeStartField ||
+      Math.abs(resizeStartField.clientHeight - resizeStartHeight) <= 1
+    ) {
+      resizeStartField = null;
+      resizeStartHeight = 0;
+      return;
+    }
+
+    syncPatternFieldHeights(resizeStartField);
+    resizeStartField = null;
+    resizeStartHeight = 0;
   });
 
   const divider = document.querySelector(".pattern-divider");

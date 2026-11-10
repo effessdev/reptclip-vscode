@@ -13,10 +13,19 @@ test("panel keeps include/exclude inputs in a responsive split layout", () => {
     resolve(repoRoot, "webview-ui", "style.css"),
     "utf8",
   );
+  const webviewJs = readFileSync(
+    resolve(repoRoot, "webview-ui", "main.js"),
+    "utf8",
+  );
 
   assert.match(html, /pattern-pair/);
   assert.match(html, /pattern-divider/);
   assert.match(css, /pattern-pair/);
   assert.match(css, /pattern-divider/);
   assert.match(css, /@media\s*\(max-width:\s*700px\)/i);
+  assert.match(webviewJs, /matchMedia\s*\(\s*"\(max-width:\s*700px\)"\s*\)/i);
+  assert.match(
+    webviewJs,
+    /other\.style\.height|style\.height\s*=\s*`\$\{\s*sourceHeight\s*\}px`/i,
+  );
 });
