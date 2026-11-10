@@ -289,6 +289,19 @@ button#redoBtn {
   flex: 0 0 auto;
 }
 
+button#undoBtn,
+button#redoBtn {
+  padding: 6px 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+button#undoBtn svg,
+button#redoBtn svg {
+  display: block;
+}
+
 button#runBtn:hover,
 button#applyBtn:hover,
 button#moreFilesBtn:hover,

@@ -95,8 +95,18 @@ export function getHtml(
     <button id="applyBtn" type="button" title="Read Search/Replace blocks from the clipboard and apply them to the workspace">Apply Diffs</button>
     <span id="status" class="status" aria-live="polite"></span>
     <span class="undo-redo-group">
-      <button id="undoBtn" type="button" title="Undo the last applied diff" disabled>Undo</button>
-      <button id="redoBtn" type="button" title="Redo the last undone diff" disabled>Redo</button>
+      <button id="undoBtn" type="button" title="Undo the last applied diff" aria-label="Undo" disabled>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="1 4 1 10 7 10"></polyline>
+          <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+        </svg>
+      </button>
+      <button id="redoBtn" type="button" title="Redo the last undone diff" aria-label="Redo" disabled>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="23 4 23 10 17 10"></polyline>
+          <path d="M20.49 15a9 9 0 1 1-2.13-9.36L23 10"></path>
+        </svg>
+      </button>
     </span>
   </div>
 
