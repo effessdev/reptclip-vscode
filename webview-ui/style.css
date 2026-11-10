@@ -156,8 +156,8 @@ input[type="text"]:focus {
   font-size: var(--vscode-editor-font-size, 1em);
   line-height: 1.5;
   white-space: pre-wrap;
-  overflow-wrap: break-word;
-  word-break: break-word;
+  overflow-wrap: anywhere;
+  word-break: break-all;
 }
 
 .pattern-backdrop {
