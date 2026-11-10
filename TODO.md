@@ -1,9 +1,8 @@
 - undo & redo.
 - settings to customize the default UI state for new projects.
 - truncate error messages with "...". clicking "..." shows the full message. clicking the text copies the error to the clipboard.
-- toggling Files off hides the inputs.
 - upgrade Output format (including the section name).
 - increase Output file input width.
 - Add new section "Project structure options" whoch is toggled off by default and hidden when project structure is off.
-    - checkbox to display the number of lines next to the fike in project structure.
-    - checkbox "API surface" to list the public functions, variables, etc. nested to the file list item. Add support for many languages. Make the parsers separate and easy to add more languages.
+  - checkbox to display the number of lines next to the fike in project structure.
+  - checkbox "API surface" to list the public functions, variables, etc. nested to the file list item. Add support for many languages. Make the parsers separate and easy to add more languages.
