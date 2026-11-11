@@ -121,7 +121,7 @@ test.after(() => {
   (Module as any)._load = originalLoad;
 });
 
-const { parseDiffBlocks, applyDiffs } =
+const { parseDiffBlocks, applyDiffs, applySnapshot } =
   require("./diffApplier") as typeof import("./diffApplier");
 const { collectNonIgnoredFiles, createEmbeddingGuard } =
   require("./gitignoreScanner") as typeof import("./gitignoreScanner");
@@ -277,6 +277,140 @@ test("applyDiffs throws instead of applying an ambiguous SEARCH match", async ()
     await fs.readFile(filePath, "utf8"),
     "alpha\nvalue\nalpha\nvalue\n",
   );
+});
+
+test("applySnapshot undoes and redoes a modified file checkpoint", async () => {
+  const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "reptclip-undo-"));
+  const filePath = path.join(rootDir, "src", "counter.js");
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
+  await fs.writeFile(filePath, "let value = 1;\n", "utf8");
+
+  const diff = [
+    "src/counter.js",
+    "<<<<<<< SEARCH",
+    "let value = 1;",
+    "=======",
+    "let value = 2;",
+    ">>>>>>> REPLACE",
+  ].join("\n");
+
+  const result = await applyDiffs(rootDir, diff);
+  assert.equal(await fs.readFile(filePath, "utf8"), "let value = 2;\n");
+
+  const undoSummary = await applySnapshot(
+    rootDir,
+    result.checkpoint.files,
+    "undo",
+  );
+  assert.deepEqual(undoSummary, {
+    modified: 1,
+    created: 0,
+    deleted: 0,
+    fuzzy: 0,
+  });
+  assert.equal(await fs.readFile(filePath, "utf8"), "let value = 1;\n");
+
+  const redoSummary = await applySnapshot(
+    rootDir,
+    result.checkpoint.files,
+    "redo",
+  );
+  assert.deepEqual(redoSummary, {
+    modified: 1,
+    created: 0,
+    deleted: 0,
+    fuzzy: 0,
+  });
+  assert.equal(await fs.readFile(filePath, "utf8"), "let value = 2;\n");
+});
+
+test("applySnapshot supports chained undo/redo across multiple checkpoints", async () => {
+  const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "reptclip-stack-"));
+  const filePath = path.join(rootDir, "src", "counter.js");
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
+  await fs.writeFile(filePath, "let value = 1;\n", "utf8");
+
+  const firstDiff = [
+    "src/counter.js",
+    "<<<<<<< SEARCH",
+    "let value = 1;",
+    "=======",
+    "let value = 2;",
+    ">>>>>>> REPLACE",
+  ].join("\n");
+
+  const secondDiff = [
+    "src/counter.js",
+    "<<<<<<< SEARCH",
+    "let value = 2;",
+    "=======",
+    "let value = 3;",
+    ">>>>>>> REPLACE",
+  ].join("\n");
+
+  const firstResult = await applyDiffs(rootDir, firstDiff);
+  const secondResult = await applyDiffs(rootDir, secondDiff);
+  assert.equal(await fs.readFile(filePath, "utf8"), "let value = 3;\n");
+
+  await applySnapshot(rootDir, secondResult.checkpoint.files, "undo");
+  assert.equal(await fs.readFile(filePath, "utf8"), "let value = 2;\n");
+
+  await applySnapshot(rootDir, firstResult.checkpoint.files, "undo");
+  assert.equal(await fs.readFile(filePath, "utf8"), "let value = 1;\n");
+
+  await applySnapshot(rootDir, firstResult.checkpoint.files, "redo");
+  assert.equal(await fs.readFile(filePath, "utf8"), "let value = 2;\n");
+
+  await applySnapshot(rootDir, secondResult.checkpoint.files, "redo");
+  assert.equal(await fs.readFile(filePath, "utf8"), "let value = 3;\n");
+});
+
+test("applySnapshot undoes and redoes a newly created file checkpoint", async () => {
+  const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "reptclip-create-"));
+  const filePath = path.join(rootDir, "notes.txt");
+
+  const diff = [
+    "notes.txt",
+    "<<<<<<< SEARCH",
+    "=======",
+    "hello from reptclip",
+    ">>>>>>> REPLACE",
+  ].join("\n");
+
+  const result = await applyDiffs(rootDir, diff);
+  assert.equal(await fs.readFile(filePath, "utf8"), "hello from reptclip");
+
+  const undoSummary = await applySnapshot(
+    rootDir,
+    result.checkpoint.files,
+    "undo",
+  );
+  assert.deepEqual(undoSummary, {
+    modified: 0,
+    created: 0,
+    deleted: 1,
+    fuzzy: 0,
+  });
+  assert.equal(
+    await fs
+      .access(filePath)
+      .then(() => true)
+      .catch(() => false),
+    false,
+  );
+
+  const redoSummary = await applySnapshot(
+    rootDir,
+    result.checkpoint.files,
+    "redo",
+  );
+  assert.deepEqual(redoSummary, {
+    modified: 0,
+    created: 1,
+    deleted: 0,
+    fuzzy: 0,
+  });
+  assert.equal(await fs.readFile(filePath, "utf8"), "hello from reptclip");
 });
 
 test("collectNonIgnoredFiles skips files ignored by nested .gitignore entries", async () => {
