@@ -5,6 +5,8 @@
 
 Paste your project as clean Markdown context into a free Chatbot, and apply the generated diffs in one click!
 
+<img width="1160" alt="Latest UI" src="https://github.com/user-attachments/assets/86319332-8c7c-4355-b1a5-340a7002216f" />
+
 ## How it works
 
 It's a 3-step process. Ideally, put VS Code and your free chatbot side-by-side.
