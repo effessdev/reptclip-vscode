@@ -43,7 +43,9 @@ If the chatbot wants to see more files, it will generate a code block containing
 
 **All settings are remembered per project**, so you don't have to re-enter them every time, and they won't be mixed up with other projects.
 
-## Context
+## Features
+
+### Copying context to clipboard
 
 The generated context has the following sections (**each one can be toggled ON or OFF using checkboxes**):
 
@@ -192,7 +194,7 @@ Do not make mistakes.
 
 You can uncheck "Copy to clipboard" to turn it off.
 
-### Safety measures for context
+#### Safety measures for context
 
 - **Only files not excluded by `.gitignore` are ever considered**, using layered, per-directory `.gitignore` parsing (via the `ignore` package) rather than shelling out to git. This isn't just a filter on one feature's candidate list, it's enforced at the single chokepoint every embedded file read passes through, so no feature and no hand-written path list can bypass it.
 
@@ -200,13 +202,17 @@ You can uncheck "Copy to clipboard" to turn it off.
 
 - **There is no second implementation for "More Files" to worry about.** Its file list comes from the clipboard instead of the pattern textareas, but the path check and the reads go through the exact same pipeline as Generate. Same `.gitignore` enforcement, same size/binary guards, same Markdown builder. The only difference is what gets wrapped around the files: More Files embeds the listed files alone, no project structure, "Output format", or "Prompt" sections, so a mid-conversation supplement pastes cleanly on top of what the chatbot already has.
 
-## Applying diffs
+### Write context to file
+
+You can write the context to a file specifying the relative or absolute path to the file in the "Output file" text box. Leaving it empty will not write the output to any files.
+
+### Applying diffs
 
 When you click the "Apply diffs" button, the diffs are read from your clipboard and applied to the files.
 
 If you have turned on the "Output format" section, the AI will generate the diffs in a single code block. You can copy those diffs, and click "Apply diffs" to apply them.
 
-### Safety measures for applying diffs
+#### Safety measures for applying diffs
 
 - **Applying a diff is all-or-nothing**: if any SEARCH block fails to validate (no match, not unique, edits a deleted file, etc.), the entire diff isn't applied, and you get an error message stating the reason.
 
@@ -220,9 +226,9 @@ If you have turned on the "Output format" section, the AI will generate the diff
 
 Next to the status message, **Undo** and **Redo** buttons step backward and forward through your last 10 applied diffs (each "Apply Diffs" click counts as one checkpoint). Undo restores every file touched by that diff to its exact pre-apply state — including recreating a file the diff deleted, or deleting one it created — and Redo reverses that. Both buttons are greyed out when there's nothing to step to. This history is kept in memory for the current VS Code session, separately from your regular per-file `Ctrl + Z` undo, and from the single remembered "already applied" fingerprint used to warn against re-applying the same diff.
 
-## Adding files to context
+### Adding files to context
 
-### Up front: the pattern textareas
+#### Up front: the pattern textareas
 
 Pick the files before generating, with two textareas:
 
@@ -233,14 +239,14 @@ You will get **suggestions** and **syntax highlighting** as you type the files. 
 
 The order in which you entered the relative paths or glob patterns is preserved. In case of redundant items, **the item that comes last gets order preference**, so if you set files to include as `**/*.py main.py`, `main.py` comes after all other `.py` files. `**/*.py src/**/*.py` puts `.py` files in `src` last.
 
-#### Example
+##### Example
 
 Include `AGENTS.md`, all Python files, but exclude `src/secret.py` and all Python files in `tests`, and put `src/main.py` last:
 
 - **Files to include:** `AGENTS.md **/*.py src/main.py`
 - **Files to exclude:** `src/secret.py src/**/*.py`
 
-### Mid-conversation: the "More Files" button
+#### Mid-conversation: the "More Files" button
 
 Paste-ready lists of paths don't come only from you. The "Output format" section explicitly instructs the chatbot to emit one when it needs more context. Copy that list, click **More Files**, and the button does the rest: it reads the clipboard, embeds those files, and (depending on your settings) puts the result back on the clipboard and/or writes it to the "Output file".
 
@@ -249,7 +255,3 @@ Here's what actually happens, in order:
 1. **Parsing is line-by-line and forgiving where it should be, strict where it must be.** Each line is trimmed and treated as one relative path. Empty lines (including runs of consecutive newlines) are skipped the way Python's `str.split()` skips empty pieces, and duplicates collapse to their first occurrence. The order you pasted is the order they're embedded in.
 2. **Pre-flight validation, all-or-nothing.** Before a single file is read, every path clears the embedding guard and is `fs.stat`-ed against the workspace root. Anything unacceptable fails the check: not found, a directory rather than a file, ignored by `.gitignore`, inside `.git`, absolute, or resolving outside the project root. Nothing is copied, nothing is written, no half-baked context reaches your clipboard; instead the panel names each offender and why, e.g. `Cannot embed: src/secret.env (ignored by .gitignore), old.py (not found)`. You fix the list and click again.
 3. **Only then does it build.** The surviving paths are read through the shared pipeline (1 MB limit, binary detection, descriptive placeholders) and formatted by the same Markdown builder used by Generate — but with only the file sections: the Project structure / Output format / Prompt section checkboxes are deliberately not applied, since those were already sent when you first generated the context.
-
-## Other notable features
-
-- Write the context to a file specified by specifying the relative or absolute path in the "Output file" text box. Leaving it empty will not write output to the file.
