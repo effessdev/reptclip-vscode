@@ -255,3 +255,20 @@ Here's what actually happens, in order:
 1. **Parsing is line-by-line and forgiving where it should be, strict where it must be.** Each line is trimmed and treated as one relative path. Empty lines (including runs of consecutive newlines) are skipped the way Python's `str.split()` skips empty pieces, and duplicates collapse to their first occurrence. The order you pasted is the order they're embedded in.
 2. **Pre-flight validation, all-or-nothing.** Before a single file is read, every path clears the embedding guard and is `fs.stat`-ed against the workspace root. Anything unacceptable fails the check: not found, a directory rather than a file, ignored by `.gitignore`, inside `.git`, absolute, or resolving outside the project root. Nothing is copied, nothing is written, no half-baked context reaches your clipboard; instead the panel names each offender and why, e.g. `Cannot embed: src/secret.env (ignored by .gitignore), old.py (not found)`. You fix the list and click again.
 3. **Only then does it build.** The surviving paths are read through the shared pipeline (1 MB limit, binary detection, descriptive placeholders) and formatted by the same Markdown builder used by Generate — but with only the file sections: the Project structure / Output format / Prompt section checkboxes are deliberately not applied, since those were already sent when you first generated the context.
+
+## Settings
+
+Open VS Code's Settings (`Ctrl+,` / `Cmd+,`) and search for **"ReptClip"** to configure the default panel state used for any project that hasn't been opened in the panel yet (i.e. has no saved per-project state). Once a project has been used with the panel, its saved state takes over and these settings no longer apply to it.
+
+| Setting                            | Default | Description                                                      |
+| ---------------------------------- | ------- | ---------------------------------------------------------------- |
+| `reptclip.defaultInclude`          | `""`    | Default value for the **Files to include** field.                |
+| `reptclip.defaultExclude`          | `""`    | Default value for the **Files to exclude** field.                |
+| `reptclip.defaultClipboard`        | `true`  | Whether **Copy to clipboard** is checked by default.             |
+| `reptclip.defaultProjectStructure` | `true`  | Whether the **Project structure** section is checked by default. |
+| `reptclip.defaultDiffFormat`       | `true`  | Whether the **Output format** section is checked by default.     |
+| `reptclip.defaultFiles`            | `true`  | Whether the **Files** section is checked by default.             |
+| `reptclip.defaultPromptTail`       | `true`  | Whether the **Prompt** section is checked by default.            |
+| `reptclip.defaultOutputFile`       | `""`    | Default value for the **Output file** field.                     |
+
+These can be set at the User level (applies to all projects without saved state) or the Workspace level (applies only within that workspace), using VS Code's normal settings scoping.

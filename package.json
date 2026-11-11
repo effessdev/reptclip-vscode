@@ -45,6 +45,51 @@
           "name": "ReptClip"
         }
       ]
+    },
+    "configuration": {
+      "title": "ReptClip",
+      "properties": {
+        "reptclip.defaultInclude": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Default value for the **Files to include** field on a project that has no saved ReptClip state yet."
+        },
+        "reptclip.defaultExclude": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Default value for the **Files to exclude** field on a project that has no saved ReptClip state yet."
+        },
+        "reptclip.defaultClipboard": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Whether **Copy to clipboard** is checked by default on a project that has no saved ReptClip state yet."
+        },
+        "reptclip.defaultProjectStructure": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Whether the **Project structure** section is checked by default on a project that has no saved ReptClip state yet."
+        },
+        "reptclip.defaultDiffFormat": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Whether the **Output format** section is checked by default on a project that has no saved ReptClip state yet."
+        },
+        "reptclip.defaultFiles": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Whether the **Files** section is checked by default on a project that has no saved ReptClip state yet."
+        },
+        "reptclip.defaultPromptTail": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Whether the **Prompt** section is checked by default on a project that has no saved ReptClip state yet."
+        },
+        "reptclip.defaultOutputFile": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Default value for the **Output file** field on a project that has no saved ReptClip state yet."
+        }
+      }
     }
   },
   "scripts": {

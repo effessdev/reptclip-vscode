@@ -5,6 +5,8 @@ import {
   saveProjectState,
   loadLastAppliedFingerprint,
   saveLastAppliedFingerprint,
+  getConfiguredDefaultUiState,
+  hasSavedProjectState,
 } from "../core/projectStorage";
 import { generateContext, moreFiles } from "../core/generateContext";
 import { copyToClipboard, readClipboard } from "../core/clipboard";
@@ -19,11 +21,7 @@ import { collectCandidates, filterCandidates } from "../core/completions";
 import { collectNonIgnoredFiles } from "../core/gitignoreScanner";
 import { tokenize } from "../core/tokenizer";
 import { matchesAnyFile } from "../core/patternMatcher";
-import {
-  defaultUiState,
-  HostToWebviewMessage,
-  WebviewToHostMessage,
-} from "../core/types";
+import { HostToWebviewMessage, WebviewToHostMessage } from "../core/types";
 
 export class ReptclipViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = "reptclip.panelView";
@@ -83,7 +81,7 @@ export class ReptclipViewProvider implements vscode.WebviewViewProvider {
     const rootDir = this.getRootDir();
     const state = rootDir
       ? loadProjectState(this.context, rootDir)
-      : defaultUiState();
+      : getConfiguredDefaultUiState();
     post({
       type: "init",
       state,
@@ -145,6 +143,27 @@ export class ReptclipViewProvider implements vscode.WebviewViewProvider {
           this.fileWatcher = undefined;
         }
       });
+    }
+
+    // A new project (nothing saved yet) tracks the configured defaults live,
+    // so editing a `reptclip.default*` setting updates the panel immediately
+    // instead of only taking effect next time the panel is opened.
+    if (rootDir) {
+      const configListener = vscode.workspace.onDidChangeConfiguration((e) => {
+        if (
+          e.affectsConfiguration("reptclip") &&
+          !hasSavedProjectState(this.context, rootDir)
+        ) {
+          post({
+            type: "init",
+            state: getConfiguredDefaultUiState(),
+            hasWorkspace: true,
+            canUndo: (this.undoStacks.get(rootDir)?.length ?? 0) > 0,
+            canRedo: (this.redoStacks.get(rootDir)?.length ?? 0) > 0,
+          });
+        }
+      });
+      webviewView.onDidDispose(() => configListener.dispose());
     }
 
     webviewView.webview.onDidReceiveMessage(

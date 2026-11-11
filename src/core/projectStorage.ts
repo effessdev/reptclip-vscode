@@ -19,7 +19,45 @@ export function loadProjectState(
 ): UiState {
   const all = context.globalState.get<ProjectStateMap>(STORAGE_KEY, {});
   const existing = all[normalize(rootDir)];
-  return existing ? { ...defaultUiState(), ...existing } : defaultUiState();
+  const defaults = getConfiguredDefaultUiState();
+  return existing ? { ...defaults, ...existing } : defaults;
+}
+
+/**
+ * Whether a project already has saved ReptClip state. Used to decide whether
+ * a live configuration change should refresh the panel's displayed state —
+ * only "new" projects (nothing saved yet) track the configured defaults.
+ */
+export function hasSavedProjectState(
+  context: vscode.ExtensionContext,
+  rootDir: string,
+): boolean {
+  const all = context.globalState.get<ProjectStateMap>(STORAGE_KEY, {});
+  return normalize(rootDir) in all;
+}
+
+/**
+ * Builds the default UI state for a project with no saved state yet, using
+ * the `reptclip.default*` settings where set and falling back to
+ * `defaultUiState()` otherwise.
+ */
+export function getConfiguredDefaultUiState(): UiState {
+  const config = vscode.workspace.getConfiguration("reptclip");
+  const defaults = defaultUiState();
+  return {
+    ...defaults,
+    include: config.get<string>("defaultInclude", defaults.include),
+    exclude: config.get<string>("defaultExclude", defaults.exclude),
+    clipboard: config.get<boolean>("defaultClipboard", defaults.clipboard),
+    projectStructure: config.get<boolean>(
+      "defaultProjectStructure",
+      defaults.projectStructure,
+    ),
+    diffFormat: config.get<boolean>("defaultDiffFormat", defaults.diffFormat),
+    files: config.get<boolean>("defaultFiles", defaults.files),
+    promptTail: config.get<boolean>("defaultPromptTail", defaults.promptTail),
+    outputFile: config.get<string>("defaultOutputFile", defaults.outputFile),
+  };
 }
 
 export async function saveProjectState(

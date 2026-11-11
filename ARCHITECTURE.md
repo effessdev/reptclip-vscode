@@ -57,8 +57,10 @@ Three layers:
   - `selectFiles(allFiles: string[], includePatterns: string[], excludePatterns: string[]): string[]` — Applies include/exclude glob logic to choose the final file set.
   - `matchesAnyFile(allFiles: string[], pattern: string): boolean` — Checks whether a glob matches at least one project file.
 - `projectStorage.ts`
-  - `loadProjectState(context: vscode.ExtensionContext, rootDir: string): UiState` — Loads per-project UI state from extension storage.
+  - `loadProjectState(context: vscode.ExtensionContext, rootDir: string): UiState` — Loads per-project UI state from extension storage, falling back to the configured defaults for projects with no saved state.
   - `saveProjectState(context: vscode.ExtensionContext, rootDir: string, state: UiState): Promise<void>` — Persists UI state for the project.
+  - `hasSavedProjectState(context: vscode.ExtensionContext, rootDir: string): boolean` — Reports whether a project already has saved UI state.
+  - `getConfiguredDefaultUiState(): UiState` — Builds the default UI state from the `reptclip.default*` settings, falling back to `defaultUiState()` for any unset.
   - `loadLastAppliedFingerprint(context: vscode.ExtensionContext, rootDir: string): string | undefined` — Retrieves the last applied diff fingerprint.
   - `saveLastAppliedFingerprint(context: vscode.ExtensionContext, rootDir: string, fingerprint: string): Promise<void>` — Stores the current diff fingerprint for replay protection.
 - `tokenizer.ts`
