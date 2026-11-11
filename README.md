@@ -7,6 +7,8 @@ Paste your project as clean Markdown context into a free Chatbot, and apply the 
 
 <img width="1160" alt="Latest UI" src="https://github.com/user-attachments/assets/86319332-8c7c-4355-b1a5-340a7002216f" />
 
+**Note:** The animations below show an older version of ReptClip, while the screenshot above shows the latest UI.
+
 ## How it works
 
 It's a 3-step process. Ideally, put VS Code and your free chatbot side-by-side.
