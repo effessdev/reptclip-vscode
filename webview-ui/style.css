@@ -272,7 +272,7 @@ input[type="text"]:focus {
 .undo-redo-group {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 0;
   margin-left: auto;
   flex: 0 0 auto;
 }
@@ -296,10 +296,23 @@ button#redoBtn {
 
 button#undoBtn,
 button#redoBtn {
-  padding: 6px 10px;
+  width: 28px;
+  height: 28px;
+  padding: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex: 0 0 auto;
+}
+
+.undo-redo-group button#undoBtn {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.undo-redo-group button#redoBtn {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
 }
 
 button#undoBtn svg,
@@ -342,8 +355,47 @@ button#redoBtn:disabled {
 }
 
 .status {
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+  max-height: 2.8em;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: normal;
+  line-height: 1.4;
   font-size: 0.85em;
   opacity: 0.85;
+  scrollbar-width: thin;
+  scrollbar-color: var(
+      --vscode-scrollbarSlider-background,
+      rgba(128, 128, 128, 0.6)
+    )
+    transparent;
+}
+
+.status::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.status::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.status::-webkit-scrollbar-thumb {
+  background: var(
+    --vscode-scrollbarSlider-background,
+    rgba(128, 128, 128, 0.6)
+  );
+  border-radius: 999px;
+}
+
+.status::-webkit-scrollbar-thumb:hover {
+  background: var(
+    --vscode-scrollbarSlider-hoverBackground,
+    rgba(128, 128, 128, 0.8)
+  );
 }
 
 .status--error {
