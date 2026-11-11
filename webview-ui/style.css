@@ -231,6 +231,7 @@ input[type="text"]:focus {
   font-weight: normal;
   white-space: nowrap;
   vertical-align: middle;
+  user-select: none;
 }
 
 .checkboxes .output-file {
@@ -242,6 +243,10 @@ input[type="text"]:focus {
 
 .checkboxes input[type="checkbox"] {
   margin: 0;
+}
+
+.checkboxes input[type="checkbox"]:focus {
+  outline: none;
 }
 
 .checkboxes .output-file input[type="text"] {
