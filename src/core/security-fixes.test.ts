@@ -115,60 +115,6 @@ const { applyDiffs, applySnapshot } =
 const { collectNonIgnoredFiles, createEmbeddingGuard } =
   require("./gitignoreScanner") as typeof import("./gitignoreScanner");
 
-/**
- * The options objects are introduced by the fix commits; this shim keeps the
- * red commit type-checkable before those types exist.
- */
-interface ApplyOptions {
-  bufferOverrides?: Map<string, string>;
-  confirmProtectedPaths?: (paths: string[]) => Promise<boolean>;
-  confirmSuspiciousReplace?: (files: string[]) => Promise<boolean>;
-}
-
-interface SnapshotOptions {
-  bufferOverrides?: Map<string, string>;
-  confirmConflict?: (paths: string[]) => Promise<boolean>;
-}
-
-const applyWithOptions = (
-  root: string,
-  text: string,
-  options: ApplyOptions,
-): Promise<{
-  modified: number;
-  created: number;
-  deleted: number;
-  fuzzy: number;
-}> =>
-  (applyDiffs as unknown as (
-    rootDir: string,
-    text: string,
-    options: ApplyOptions,
-  ) => Promise<{
-    modified: number;
-    created: number;
-    deleted: number;
-    fuzzy: number;
-  }>)(root, text, options);
-
-const snapshotWithOptions = (
-  root: string,
-  files: { relPath: string; before?: string; after?: string }[],
-  direction: "undo" | "redo",
-  options: SnapshotOptions,
-) =>
-  (applySnapshot as unknown as (
-    rootDir: string,
-    files: unknown[],
-    direction: string,
-    options: SnapshotOptions,
-  ) => Promise<{ modified: number; created: number; deleted: number }>)(
-    root,
-    files,
-    direction,
-    options,
-  );
-
 async function makeRoot(prefix: string): Promise<string> {
   return fs.mkdtemp(path.join(os.tmpdir(), prefix));
 }
@@ -285,7 +231,7 @@ test("E2 applies protected paths only when the confirmation resolves true", asyn
   await writeFile(root, ".env", "TOKEN=1\n");
   const diff = block(".env", "TOKEN=1", "TOKEN=2");
 
-  const confirmed = await applyWithOptions(root, diff, {
+  const confirmed = await applyDiffs(root, diff, {
     confirmProtectedPaths: async (paths) =>
       paths.length === 1 && paths[0] === ".env",
   });
@@ -300,7 +246,7 @@ test("E2 aborts without writing when the confirmation is declined", async () => 
 
   await assert.rejects(
     () =>
-      applyWithOptions(root, diff, {
+      applyDiffs(root, diff, {
         confirmProtectedPaths: async () => false,
       }),
     /cancel|declin|abort/i,
@@ -323,14 +269,14 @@ test("E3 undo asks before overwriting a file edited after the apply", async () =
 
   await assert.rejects(
     () =>
-      snapshotWithOptions(root, result.checkpoint.files, "undo", {
+      applySnapshot(root, result.checkpoint.files, "undo", {
         confirmConflict: async () => false,
       }),
     /changed since|conflict/i,
   );
   assert.equal(await fs.readFile(file, "utf8"), "USER-EDIT-AFTER-APPLY\n");
 
-  await snapshotWithOptions(root, result.checkpoint.files, "undo", {
+  await applySnapshot(root, result.checkpoint.files, "undo", {
     confirmConflict: async () => true,
   });
   assert.equal(await fs.readFile(file, "utf8"), "v1\n");
@@ -341,7 +287,7 @@ test("E3 matches against the editor buffer, not the stale disk copy", async () =
   const file = await writeFile(root, "a.ts", "const a = 1;\n");
   const buffer = "const a = 1;\n// unsaved\n";
 
-  const result = await applyWithOptions(
+  const result = await applyDiffs(
     root,
     block("a.ts", "// unsaved", "// saved"),
     { bufferOverrides: new Map([[file, buffer]]) },
@@ -429,14 +375,14 @@ test("E6 asks before applying a REPLACE that contains a separator-like line", as
 
   await assert.rejects(
     () =>
-      applyWithOptions(root, diff, {
+      applyDiffs(root, diff, {
         confirmSuspiciousReplace: async () => false,
       }),
     /cancel|declin|abort|separator/i,
   );
   assert.equal(await fs.readFile(file, "utf8"), "title\n=======\nbody\n");
 
-  await applyWithOptions(root, diff, {
+  await applyDiffs(root, diff, {
     confirmSuspiciousReplace: async () => true,
   });
   assert.notEqual(await fs.readFile(file, "utf8"), "title\n=======\nbody\n");
@@ -458,6 +404,132 @@ test("E7 honours a nested .gitignore negation that overrides a root pattern", as
   assert.ok(files.includes("nested/keep.log"), "git re-includes nested/keep.log");
   assert.ok(!files.includes("nested/other.log"));
   assert.equal((await createEmbeddingGuard(root)("nested/keep.log")).ok, true);
+});
+
+test("E1 refuses a dangling link instead of walking past it", async (t) => {
+  const root = await makeRoot("reptclip-e1d-");
+  const outside = await makeRoot("reptclip-e1d-outside-");
+  const linkPath = path.join(root, "report.txt");
+
+  try {
+    await fs.symlink(path.join(outside, "missing.txt"), linkPath, "file");
+  } catch {
+    t.skip("cannot create a file link in this environment");
+    return;
+  }
+
+  await assert.rejects(
+    () => applyDiffs(root, block("report.txt", "", "owned")),
+    /dangling link|escapes the workspace/,
+  );
+  assert.equal(await exists(path.join(outside, "missing.txt")), false);
+});
+
+test("E2 refuses .git reached through an in-workspace link", async (t) => {
+  const root = await makeRoot("reptclip-e2l-");
+  await writeFile(root, ".git/hooks/pre-commit", "#!/bin/sh\n");
+  const linkPath = path.join(root, "gitlink");
+
+  let linked = true;
+  try {
+    await fs.symlink(path.join(root, ".git"), linkPath, "junction");
+  } catch {
+    try {
+      await fs.symlink(path.join(root, ".git"), linkPath);
+    } catch {
+      linked = false;
+    }
+  }
+  if (!linked) {
+    t.skip("cannot create a directory link in this environment");
+    return;
+  }
+
+  await assert.rejects(
+    () =>
+      applyDiffs(
+        root,
+        block("gitlink/hooks/pre-commit", "#!/bin/sh", "#!/bin/sh\necho pwned"),
+      ),
+    /protected/i,
+  );
+  assert.equal(
+    await fs.readFile(path.join(root, ".git/hooks/pre-commit"), "utf8"),
+    "#!/bin/sh\n",
+  );
+});
+
+test("E2 refuses an NTFS stream alias of .env", async () => {
+  const root = await makeRoot("reptclip-e2s-");
+  await writeFile(root, ".env", "TOKEN=1\n");
+
+  await assert.rejects(
+    () => applyDiffs(root, block(".env::$DATA", "", "TOKEN=2")),
+    /protected/i,
+  );
+  assert.equal(await fs.readFile(path.join(root, ".env"), "utf8"), "TOKEN=1\n");
+});
+
+test("E6 detects a separator that is indented inside the REPLACE", async () => {
+  const root = await makeRoot("reptclip-e6i-");
+  const file = await writeFile(root, "doc.md", "A\n");
+
+  const diff = [
+    "doc.md",
+    "<<<<<<< SEARCH",
+    "A",
+    "=======",
+    "B",
+    "   =======",
+    "C",
+    ">>>>>>> REPLACE",
+  ].join("\n");
+
+  await assert.rejects(
+    () =>
+      applyDiffs(root, diff, {
+        confirmSuspiciousReplace: async () => false,
+      }),
+    /cancel|declin|abort|separator/i,
+  );
+  assert.equal(await fs.readFile(file, "utf8"), "A\n");
+});
+
+test("E7 guard rejects a re-include under an excluded directory", async () => {
+  const root = await makeRoot("reptclip-e7b-");
+  await writeFile(root, ".gitignore", "build/\n");
+  await writeFile(root, "build/.gitignore", "!secret.txt\n");
+  await writeFile(root, "build/secret.txt", "hidden\n");
+
+  const files = await collectNonIgnoredFiles(root);
+  assert.equal(files.includes("build/secret.txt"), false);
+  assert.deepEqual(await createEmbeddingGuard(root)("build/secret.txt"), {
+    ok: false,
+    reason: "ignored by .gitignore",
+  });
+});
+
+test("E3 undo uses the buffer when checking for later edits", async () => {
+  const root = await makeRoot("reptclip-e3c-");
+  const file = await writeFile(root, "a.txt", "v1\n");
+  const result = await applyDiffs(root, block("a.txt", "v1", "v2"));
+  const buffer = new Map([[file, "USER-EDIT-IN-BUFFER\n"]]);
+
+  await assert.rejects(
+    () =>
+      applySnapshot(root, result.checkpoint.files, "undo", {
+        bufferOverrides: buffer,
+        confirmConflict: async () => false,
+      }),
+    /changed since|conflict/i,
+  );
+  assert.equal(await fs.readFile(file, "utf8"), "v2\n");
+
+  await applySnapshot(root, result.checkpoint.files, "undo", {
+    bufferOverrides: buffer,
+    confirmConflict: async () => true,
+  });
+  assert.equal(await fs.readFile(file, "utf8"), "v1\n");
 });
 
 // ---------------------------------------------------------------------------

@@ -112,6 +112,20 @@ export function createEmbeddingGuard(
       return { ok: false, reason: "ignored by .gitignore" };
     }
 
+    // Git cannot re-include a file whose parent directory is excluded, no
+    // matter what a deeper .gitignore says. The tree scan already skips such a
+    // directory, so the guard has to agree or it would embed files the scan
+    // treats as ignored.
+    const relativeToRoot = path.relative(rootNorm, absPath);
+    let ancestor = rootNorm;
+    for (const segment of relativeToRoot.split(path.sep).slice(0, -1)) {
+      ancestor = path.join(ancestor, segment);
+      const ancestorLevels = await levelsFor(path.dirname(ancestor));
+      if (isIgnored(ancestor, true, ancestorLevels)) {
+        return { ok: false, reason: "ignored by .gitignore" };
+      }
+    }
+
     return { ok: true };
   };
 }
