@@ -366,6 +366,14 @@ export class ReptclipViewProvider implements vscode.WebviewViewProvider {
                       return choice === "Apply anyway";
                     }
                   : undefined,
+                confirmSuspiciousReplace: async (files) => {
+                  const choice = await vscode.window.showWarningMessage(
+                    `The REPLACE block for ${files.join(", ")} contains a "=======" line. That usually means a SEARCH separator was swallowed and more code will change than intended. Apply anyway?`,
+                    { modal: true },
+                    "Apply anyway",
+                  );
+                  return choice === "Apply anyway";
+                },
               });
               await saveLastAppliedFingerprint(
                 this.context,

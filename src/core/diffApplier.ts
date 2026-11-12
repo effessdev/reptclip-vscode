@@ -64,6 +64,11 @@ export interface ApplyOptions {
   bufferOverrides?: Map<string, string>;
   /** Resolve true to allow writing paths the diff normally refuses to touch. */
   confirmProtectedPaths?: (paths: string[]) => Promise<boolean>;
+  /**
+   * Resolve true to apply a block whose REPLACE contains a `=======` line,
+   * which usually means the SEARCH separator was swallowed by the parser.
+   */
+  confirmSuspiciousReplace?: (files: string[]) => Promise<boolean>;
 }
 
 /** Options for `applySnapshot` (undo/redo). */
@@ -469,6 +474,38 @@ export async function applyDiffs(
     throw new Error("Clipboard does not contain any SEARCH/REPLACE blocks.");
   }
 
+  // A `=======` line inside the REPLACE half means the parser took the second
+  // separator as the boundary: the intended SEARCH tail was folded into the
+  // replacement and the edit silently changes more than the author asked for.
+  // It cannot be told apart from a legitimate "======" line in the new code,
+  // so the host has to confirm instead of the parser guessing.
+  const suspiciousReplace = [
+    ...new Set(
+      blocks
+        .filter((block) =>
+          block.replace
+            .split(/\r?\n/)
+            .some((line) => /^={7,}$/.test(line.trimEnd())),
+        )
+        .map((block) => block.file),
+    ),
+  ];
+  if (suspiciousReplace.length > 0) {
+    if (!options.confirmSuspiciousReplace) {
+      throw new Error(
+        `Refusing to apply: the REPLACE block for ${suspiciousReplace.join(", ")} ` +
+          'contains a "=======" line, which usually means a SEARCH separator was ' +
+          "swallowed. Split the edit into separate blocks or confirm explicitly.",
+      );
+    }
+    const confirmed = await options.confirmSuspiciousReplace(suspiciousReplace);
+    if (!confirmed) {
+      throw new Error(
+        `Apply cancelled: the "=======" line in ${suspiciousReplace.join(", ")} was not confirmed.`,
+      );
+    }
+  }
+
   const protectedPaths = [
     ...new Set(
       blocks
@@ -520,8 +557,7 @@ export async function applyDiffs(
       throw new Error(`Diff edits ${block.file} after it was deleted.`);
     }
 
-    if (block.search === "") {
-      // Empty SEARCH: create (or keep appending to a file being created).
+    if (block.search === "") {      // Empty SEARCH: create (or keep appending to a file being created).
       if (plan.existed && plan.content.trim() !== "") {
         throw new Error(
           `${block.file} already exists. An empty SEARCH block is only for new files.`,
@@ -529,6 +565,13 @@ export async function applyDiffs(
       }
       plan.content += block.replace;
       continue;
+    }
+
+    if (!plan.existed && plan.content === "") {
+      throw new Error(
+        `No match found for the SEARCH block in ${block.file}: the file does not exist. ` +
+          "A file path must be on its own line immediately before <<<<<<< SEARCH.",
+      );
     }
 
     const {
