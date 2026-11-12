@@ -351,24 +351,22 @@ export class ReptclipViewProvider implements vscode.WebviewViewProvider {
                 }
               }
 
-              const result = await applyDiffs(
-                rootDir,
-                clipboardText,
-                vscode.workspace
-                  .getConfiguration("reptclip")
-                  .get<boolean>("allowProtectedFileWrites", false)
-                  ? {
-                      confirmProtectedPaths: async (paths) => {
-                        const choice = await vscode.window.showWarningMessage(
-                          `This diff writes protected paths: ${paths.join(", ")}. Git executes content from .git, and .env* changes the project configuration. Apply anyway?`,
-                          { modal: true },
-                          "Apply anyway",
-                        );
-                        return choice === "Apply anyway";
-                      },
+              const allowProtectedWrites = vscode.workspace
+                .getConfiguration("reptclip")
+                .get<boolean>("allowProtectedFileWrites", false);
+              const result = await applyDiffs(rootDir, clipboardText, {
+                bufferOverrides: this.collectDirtyBuffers(),
+                confirmProtectedPaths: allowProtectedWrites
+                  ? async (paths) => {
+                      const choice = await vscode.window.showWarningMessage(
+                        `This diff writes protected paths: ${paths.join(", ")}. Git executes content from .git, and .env* changes the project configuration. Apply anyway?`,
+                        { modal: true },
+                        "Apply anyway",
+                      );
+                      return choice === "Apply anyway";
                     }
-                  : {},
-              );
+                  : undefined,
+              });
               await saveLastAppliedFingerprint(
                 this.context,
                 rootDir,
@@ -422,6 +420,10 @@ export class ReptclipViewProvider implements vscode.WebviewViewProvider {
                 rootDir,
                 checkpoint.files,
                 "undo",
+                {
+                  bufferOverrides: this.collectDirtyBuffers(),
+                  confirmConflict: (paths) => this.confirmDiscard(paths, "undo"),
+                },
               );
               this.pushCheckpoint(this.redoStacks, rootDir, checkpoint);
               post({
@@ -468,6 +470,10 @@ export class ReptclipViewProvider implements vscode.WebviewViewProvider {
                 rootDir,
                 checkpoint.files,
                 "redo",
+                {
+                  bufferOverrides: this.collectDirtyBuffers(),
+                  confirmConflict: (paths) => this.confirmDiscard(paths, "redo"),
+                },
               );
               this.pushCheckpoint(this.undoStacks, rootDir, checkpoint);
               post({
@@ -492,6 +498,35 @@ export class ReptclipViewProvider implements vscode.WebviewViewProvider {
         }
       },
     );
+  }
+
+  /**
+   * Snapshot of every dirty file-backed document. The buffer is what the user
+   * sees, so it replaces the stale disk copy for matching and for conflict
+   * checks; otherwise unsaved edits would be missed or silently dropped.
+   */
+  private collectDirtyBuffers(): Map<string, string> {
+    const buffers = new Map<string, string>();
+    for (const document of vscode.workspace.textDocuments) {
+      if (document.uri.scheme === "file" && document.isDirty) {
+        buffers.set(document.uri.fsPath, document.getText());
+      }
+    }
+    return buffers;
+  }
+
+  /** Confirms undo/redo when the files changed after the checkpoint. */
+  private async confirmDiscard(
+    paths: string[],
+    action: "undo" | "redo",
+  ): Promise<boolean> {
+    const label = action === "undo" ? "Undo" : "Redo";
+    const choice = await vscode.window.showWarningMessage(
+      `${paths.join(", ")} changed since this diff was applied. ${label} will overwrite those edits. Continue?`,
+      { modal: true },
+      "Continue",
+    );
+    return choice === "Continue";
   }
 
   /** Pushes a checkpoint onto a stack, dropping the oldest once past the cap. */

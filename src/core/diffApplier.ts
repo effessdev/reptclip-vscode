@@ -56,8 +56,22 @@ export interface ApplyResult extends ApplySummary {
 
 /** Optional hooks a host provides so core code stays free of `vscode` dialogs. */
 export interface ApplyOptions {
+  /**
+   * In-editor buffers that win over the on-disk copy, keyed by absolute path.
+   * A dirty document is the truth the user sees; matching against the stale
+   * disk copy would either miss the block or silently drop unsaved edits.
+   */
+  bufferOverrides?: Map<string, string>;
   /** Resolve true to allow writing paths the diff normally refuses to touch. */
   confirmProtectedPaths?: (paths: string[]) => Promise<boolean>;
+}
+
+/** Options for `applySnapshot` (undo/redo). */
+export interface SnapshotOptions {
+  /** In-editor buffers that win over the on-disk copy, keyed by absolute path. */
+  bufferOverrides?: Map<string, string>;
+  /** Resolve true to overwrite files that changed since the checkpoint. */
+  confirmConflict?: (paths: string[]) => Promise<boolean>;
 }
 
 const SEARCH_MARKER = "<<<<<<< SEARCH";
@@ -481,7 +495,9 @@ export async function applyDiffs(
     const absPath = await resolveFile(rootDir, block.file);
     let plan = plans.get(absPath);
     if (!plan) {
-      const original = await readFileIfExists(absPath);
+      const original =
+        options.bufferOverrides?.get(absPath) ??
+        (await readFileIfExists(absPath));
       plan = {
         absPath,
         relPath: path
@@ -551,21 +567,33 @@ export async function applyDiffs(
  * Restores a checkpoint's file contents in the given direction: "undo" sets
  * every file back to its pre-apply content (deleting ones that didn't exist
  * yet), "redo" re-applies the post-apply content (deleting ones the original
- * apply had removed). Uses the current on-disk state, not the checkpoint's
- * own `existed` bookkeeping, to decide create-vs-modify, so it still behaves
- * sensibly if a file was touched by hand since the checkpoint was recorded.
+ * apply had removed).
+ *
+ * The current content is compared with the state the checkpoint expects to find
+ * on disk (the "after" side for undo, the "before" side for redo). A mismatch
+ * means the file was edited after the checkpoint was recorded, so restoring it
+ * would destroy that work; nothing is written until the caller confirms.
  */
 export async function applySnapshot(
   rootDir: string,
   files: FileSnapshot[],
   direction: "undo" | "redo",
+  options: SnapshotOptions = {},
 ): Promise<ApplySummary> {
   const plans: FilePlan[] = [];
+  const conflicts: string[] = [];
   for (const file of files) {
     const target = direction === "undo" ? file.before : file.after;
+    const expected = direction === "undo" ? file.after : file.before;
     const absPath = await resolveFile(rootDir, file.relPath);
-    const currentContent = await readFileIfExists(absPath);
+    const currentContent =
+      options.bufferOverrides?.get(absPath) ??
+      (await readFileIfExists(absPath));
     const currentExists = currentContent !== undefined;
+
+    if (currentExists && currentContent !== expected) {
+      conflicts.push(file.relPath);
+    }
 
     if (target === undefined) {
       if (currentExists) {
@@ -589,6 +617,22 @@ export async function applySnapshot(
       content: target,
       deleted: false,
     });
+  }
+
+  if (conflicts.length > 0) {
+    const action = direction === "undo" ? "Undo" : "Redo";
+    if (!options.confirmConflict) {
+      throw new Error(
+        `Files changed since this diff was recorded: ${conflicts.join(", ")}. ` +
+          `${action} cancelled; revert those files by hand first.`,
+      );
+    }
+    const confirmed = await options.confirmConflict(conflicts);
+    if (!confirmed) {
+      throw new Error(
+        `${action} cancelled: ${conflicts.join(", ")} changed since the diff was applied.`,
+      );
+    }
   }
 
   const { modified, created, deleted } = await commitPlans(plans);
