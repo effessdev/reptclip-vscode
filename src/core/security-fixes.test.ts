@@ -258,6 +258,7 @@ test("E1 refuses to follow a file link that points outside the workspace", async
 
 test("E2 refuses to write .env and .git/hooks without an explicit confirmation", async () => {
   const root = await makeRoot("reptclip-e2-");
+  await writeFile(root, ".gitignore", ".env\n");
   await writeFile(root, ".env", "TOKEN=1\n");
   await writeFile(root, ".git/hooks/pre-commit", "#!/bin/sh\n");
 
