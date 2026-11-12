@@ -226,9 +226,9 @@ If you have turned on the "Output format" section, the AI will generate the diff
 
 - **Dirty editor buffers win over the disk copy.** If a file is open with unsaved changes, matching and the checkpoint use the buffer, so a block that only exists in the editor is found and the unrelated unsaved lines are kept. Nothing is matched against a stale copy anymore.
 
-- **Protected paths are refused by default.** A diff cannot write anything inside `.git` (git executes content from there: hooks, aliases, `core.fsmonitor`) or to `.env` / `.env.*` (swapping the environment file is a configuration change). Set `reptclip.allowProtectedFileWrites` to `true` to get a confirmation dialog per apply instead of a hard refusal.
+- **Protected paths are refused by default.** A diff cannot write anything inside `.git` (git executes content from there: hooks, aliases, `core.fsmonitor`) or to `.env` / `.env.*` (swapping the environment file is a configuration change), including when the path reaches them through a link or an NTFS stream alias. Set `reptclip.allowProtectedFileWrites` to `true` to get a confirmation dialog per apply instead of a hard refusal.
 
-- **A diff path must stay inside the workspace, even through links.** Diff paths are resolved with `fs.realpath` before anything is written, so a symlink or directory junction inside the project cannot turn `linked/file.txt` into a write outside it.
+- **A diff path must stay inside the workspace, even through symlinks and junctions.** Diff paths are resolved with `fs.realpath` before anything is written, including dangling links, so a link inside the project cannot turn `linked/file.txt` into a write outside it. Hard links are not covered: they are the same file under a local path, so there is no path difference to detect.
 
 - **Inserted lines follow the file's line endings.** A single-line SEARCH used to leave LF lines inside a CRLF file; the replacement is now converted to whichever convention the matched region (or the file) uses.
 
