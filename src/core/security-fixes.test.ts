@@ -1,0 +1,512 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import Module from "node:module";
+
+/**
+ * Regression tests for the P0 audit findings (C1, C2, C4, M3, M4a, M4b and the
+ * `.gitignore` negation divergence).
+ *
+ * The `vscode` module is faked the same way `core-behavior.test.ts` does it so
+ * the real `diffApplier` code runs against real files in temp directories.
+ */
+
+const originalLoad = (Module as any)._load;
+const fakeVscode = {
+  Uri: { file: (absPath: string) => ({ fsPath: absPath, path: absPath }) },
+  Position: class {
+    constructor(
+      public line: number,
+      public character: number,
+    ) {}
+  },
+  Range: class {
+    start: { line: number; character: number };
+    end: { line: number; character: number };
+
+    constructor(
+      startLine: number,
+      startCharacter: number,
+      endLine: number,
+      endCharacter: number,
+    ) {
+      this.start = { line: startLine, character: startCharacter };
+      this.end = { line: endLine, character: endCharacter };
+    }
+  },
+  WorkspaceEdit: class {
+    operations: any[] = [];
+
+    deleteFile(uri: { fsPath: string }) {
+      this.operations.push(["deleteFile", uri]);
+    }
+
+    createFile(uri: { fsPath: string }) {
+      this.operations.push(["createFile", uri]);
+    }
+
+    insert(uri: { fsPath: string }, position: unknown, text: string) {
+      this.operations.push(["insert", uri, position, text]);
+    }
+
+    replace(uri: { fsPath: string }, range: unknown, text: string) {
+      this.operations.push(["replace", uri, text]);
+    }
+  },
+  workspace: {
+    async applyEdit(edit: { operations: any[] }) {
+      for (const operation of edit.operations) {
+        const [kind, uri] = operation;
+        const filePath = uri.fsPath;
+
+        if (kind === "createFile") {
+          await fs.writeFile(filePath, "", "utf8");
+          continue;
+        }
+
+        if (kind === "deleteFile") {
+          await fs.rm(filePath, { force: true });
+          continue;
+        }
+
+        if (kind === "insert") {
+          const existing = await fs.readFile(filePath, "utf8").catch(() => "");
+          await fs.writeFile(filePath, existing + operation[3], "utf8");
+          continue;
+        }
+
+        if (kind === "replace") {
+          await fs.writeFile(filePath, operation[2], "utf8");
+        }
+      }
+      return true;
+    },
+    async openTextDocument(uri: { fsPath: string }) {
+      const content = await fs.readFile(uri.fsPath, "utf8").catch(() => "");
+      return {
+        uri,
+        lineCount: content.split(/\r?\n/).length,
+        save: async () => undefined,
+      };
+    },
+  },
+  window: { async showTextDocument() { return undefined; } },
+};
+
+(Module as any)._load = function (
+  request: string,
+  parent: unknown,
+  isMain: boolean,
+) {
+  if (request === "vscode") {
+    return fakeVscode;
+  }
+  return originalLoad.call(this, request, parent, isMain);
+};
+
+test.after(() => {
+  (Module as any)._load = originalLoad;
+});
+
+const { applyDiffs, applySnapshot } =
+  require("./diffApplier") as typeof import("./diffApplier");
+const { collectNonIgnoredFiles, createEmbeddingGuard } =
+  require("./gitignoreScanner") as typeof import("./gitignoreScanner");
+
+/**
+ * The options objects are introduced by the fix commits; this shim keeps the
+ * red commit type-checkable before those types exist.
+ */
+interface ApplyOptions {
+  bufferOverrides?: Map<string, string>;
+  confirmProtectedPaths?: (paths: string[]) => Promise<boolean>;
+  confirmSuspiciousReplace?: (files: string[]) => Promise<boolean>;
+}
+
+interface SnapshotOptions {
+  bufferOverrides?: Map<string, string>;
+  confirmConflict?: (paths: string[]) => Promise<boolean>;
+}
+
+const applyWithOptions = (
+  root: string,
+  text: string,
+  options: ApplyOptions,
+): Promise<{
+  modified: number;
+  created: number;
+  deleted: number;
+  fuzzy: number;
+}> =>
+  (applyDiffs as unknown as (
+    rootDir: string,
+    text: string,
+    options: ApplyOptions,
+  ) => Promise<{
+    modified: number;
+    created: number;
+    deleted: number;
+    fuzzy: number;
+  }>)(root, text, options);
+
+const snapshotWithOptions = (
+  root: string,
+  files: { relPath: string; before?: string; after?: string }[],
+  direction: "undo" | "redo",
+  options: SnapshotOptions,
+) =>
+  (applySnapshot as unknown as (
+    rootDir: string,
+    files: unknown[],
+    direction: string,
+    options: SnapshotOptions,
+  ) => Promise<{ modified: number; created: number; deleted: number }>)(
+    root,
+    files,
+    direction,
+    options,
+  );
+
+async function makeRoot(prefix: string): Promise<string> {
+  return fs.mkdtemp(path.join(os.tmpdir(), prefix));
+}
+
+async function writeFile(
+  root: string,
+  relPath: string,
+  content: string,
+): Promise<string> {
+  const absPath = path.join(root, relPath);
+  await fs.mkdir(path.dirname(absPath), { recursive: true });
+  await fs.writeFile(absPath, content, "utf8");
+  return absPath;
+}
+
+async function exists(absPath: string): Promise<boolean> {
+  return fs
+    .access(absPath)
+    .then(() => true)
+    .catch(() => false);
+}
+
+function block(
+  file: string,
+  search: string,
+  replace: string,
+): string {
+  return [file, "<<<<<<< SEARCH", search, "=======", replace, ">>>>>>> REPLACE"].join(
+    "\n",
+  );
+}
+
+// ---------------------------------------------------------------------------
+// E1 [C1] - a link inside the workspace must not become a write outside it.
+// ---------------------------------------------------------------------------
+
+test("E1 refuses to write through a directory link that leaves the workspace", async (t) => {
+  const root = await makeRoot("reptclip-e1-root-");
+  const outside = await makeRoot("reptclip-e1-outside-");
+  const linkPath = path.join(root, "linked");
+
+  let linked = true;
+  try {
+    await fs.symlink(outside, linkPath, "junction");
+  } catch {
+    try {
+      await fs.symlink(outside, linkPath);
+    } catch {
+      linked = false;
+    }
+  }
+  if (!linked) {
+    t.skip("cannot create a directory link in this environment");
+    return;
+  }
+
+  await assert.rejects(
+    () => applyDiffs(root, block("linked/pwned.txt", "", "owned")),
+    /escapes the workspace/,
+  );
+  assert.equal(await exists(path.join(outside, "pwned.txt")), false);
+});
+
+test("E1 refuses to follow a file link that points outside the workspace", async (t) => {
+  const root = await makeRoot("reptclip-e1f-root-");
+  const outside = await makeRoot("reptclip-e1f-outside-");
+  await writeFile(outside, "secret.txt", "OUTSIDE-SECRET\n");
+  const linkPath = path.join(root, "secret.txt");
+
+  try {
+    await fs.symlink(path.join(outside, "secret.txt"), linkPath, "file");
+  } catch {
+    t.skip("cannot create a file link in this environment");
+    return;
+  }
+
+  await assert.rejects(
+    () => applyDiffs(root, block("secret.txt", "OUTSIDE-SECRET", "PWNED")),
+    /escapes the workspace/,
+  );
+  assert.equal(await fs.readFile(path.join(outside, "secret.txt"), "utf8"), "OUTSIDE-SECRET\n");
+});
+
+// ---------------------------------------------------------------------------
+// E2 [C2] - the write path must honour the same protected paths as the read path.
+// ---------------------------------------------------------------------------
+
+test("E2 refuses to write .env and .git/hooks without an explicit confirmation", async () => {
+  const root = await makeRoot("reptclip-e2-");
+  await writeFile(root, ".env", "TOKEN=1\n");
+  await writeFile(root, ".git/hooks/pre-commit", "#!/bin/sh\n");
+
+  const diff = [
+    block(".env", "TOKEN=1", "TOKEN=2"),
+    block(".git/hooks/pre-commit", "", "#!/bin/sh\necho pwned\n"),
+  ].join("\n");
+
+  await assert.rejects(() => applyDiffs(root, diff), /protected/i);
+  assert.equal(await fs.readFile(path.join(root, ".env"), "utf8"), "TOKEN=1\n");
+  assert.equal(
+    await fs.readFile(path.join(root, ".git/hooks/pre-commit"), "utf8"),
+    "#!/bin/sh\n",
+  );
+
+  // The read-side guard already rejects both paths; that must not change.
+  const guard = createEmbeddingGuard(root);
+  assert.equal((await guard(".env")).ok, false);
+  assert.equal((await guard(".git/hooks/pre-commit")).ok, false);
+});
+
+test("E2 applies protected paths only when the confirmation resolves true", async () => {
+  const root = await makeRoot("reptclip-e2y-");
+  await writeFile(root, ".env", "TOKEN=1\n");
+  const diff = block(".env", "TOKEN=1", "TOKEN=2");
+
+  const confirmed = await applyWithOptions(root, diff, {
+    confirmProtectedPaths: async (paths) =>
+      paths.length === 1 && paths[0] === ".env",
+  });
+  assert.equal(confirmed.modified, 1);
+  assert.equal(await fs.readFile(path.join(root, ".env"), "utf8"), "TOKEN=2\n");
+});
+
+test("E2 aborts without writing when the confirmation is declined", async () => {
+  const root = await makeRoot("reptclip-e2n-");
+  await writeFile(root, ".env", "TOKEN=1\n");
+  const diff = block(".env", "TOKEN=1", "TOKEN=2");
+
+  await assert.rejects(
+    () =>
+      applyWithOptions(root, diff, {
+        confirmProtectedPaths: async () => false,
+      }),
+    /cancel|declin|abort/i,
+  );
+  assert.equal(await fs.readFile(path.join(root, ".env"), "utf8"), "TOKEN=1\n");
+});
+
+// ---------------------------------------------------------------------------
+// E3 [C4] - undo must not silently destroy edits made after the apply.
+// ---------------------------------------------------------------------------
+
+test("E3 undo asks before overwriting a file edited after the apply", async () => {
+  const root = await makeRoot("reptclip-e3-");
+  const file = await writeFile(root, "a.txt", "v1\n");
+  const result = await applyDiffs(
+    root,
+    block("a.txt", "v1", "v2"),
+  );
+  await fs.writeFile(file, "USER-EDIT-AFTER-APPLY\n", "utf8");
+
+  await assert.rejects(
+    () =>
+      snapshotWithOptions(root, result.checkpoint.files, "undo", {
+        confirmConflict: async () => false,
+      }),
+    /changed since|conflict/i,
+  );
+  assert.equal(await fs.readFile(file, "utf8"), "USER-EDIT-AFTER-APPLY\n");
+
+  await snapshotWithOptions(root, result.checkpoint.files, "undo", {
+    confirmConflict: async () => true,
+  });
+  assert.equal(await fs.readFile(file, "utf8"), "v1\n");
+});
+
+test("E3 matches against the editor buffer, not the stale disk copy", async () => {
+  const root = await makeRoot("reptclip-e3b-");
+  const file = await writeFile(root, "a.ts", "const a = 1;\n");
+  const buffer = "const a = 1;\n// unsaved\n";
+
+  const result = await applyWithOptions(
+    root,
+    block("a.ts", "// unsaved", "// saved"),
+    { bufferOverrides: new Map([[file, buffer]]) },
+  );
+
+  assert.equal(result.modified, 1);
+  assert.equal(await fs.readFile(file, "utf8"), "const a = 1;\n// saved\n");
+});
+
+// ---------------------------------------------------------------------------
+// E4 [M3] - inserted lines must follow the target file's line ending.
+// ---------------------------------------------------------------------------
+
+test("E4 keeps a CRLF file pure CRLF when the replacement has new lines", async () => {
+  const root = await makeRoot("reptclip-e4-");
+  const file = await writeFile(root, "a.txt", "alpha\r\nbeta\r\ngamma\r\n");
+
+  const summary = await applyDiffs(
+    root,
+    block("a.txt", "beta", "BETA\nnew line"),
+  );
+
+  const content = await fs.readFile(file, "utf8");
+  assert.equal(summary.fuzzy, 0);
+  assert.equal(content, "alpha\r\nBETA\r\nnew line\r\ngamma\r\n");
+  assert.equal(/[^\r]\n/.test(content), false, "no lone LF may remain");
+});
+
+test("E4 leaves an LF file on LF", async () => {
+  const root = await makeRoot("reptclip-e4lf-");
+  const file = await writeFile(root, "a.txt", "alpha\nbeta\n");
+
+  await applyDiffs(root, block("a.txt", "beta", "BETA\nnew line"));
+
+  assert.equal(await fs.readFile(file, "utf8"), "alpha\nBETA\nnew line\n");
+});
+
+// ---------------------------------------------------------------------------
+// E5 [M4a] - a hijacked path must produce an actionable error.
+// ---------------------------------------------------------------------------
+
+test("E5 names the suspicious path and the format rule when the path is prose", async () => {
+  const root = await makeRoot("reptclip-e5-");
+  await writeFile(root, "a.txt", "one\ntwo\n");
+
+  const diff = [
+    block("a.txt", "one", "ONE"),
+    "",
+    "Now the second change:",
+    "<<<<<<< SEARCH",
+    "two",
+    "=======",
+    "TWO",
+    ">>>>>>> REPLACE",
+  ].join("\n");
+
+  await assert.rejects(
+    () => applyDiffs(root, diff),
+    (error: Error) =>
+      /Now the second change:/.test(error.message) &&
+      /immediately before/.test(error.message),
+  );
+  assert.equal(await fs.readFile(path.join(root, "a.txt"), "utf8"), "one\ntwo\n");
+});
+
+// ---------------------------------------------------------------------------
+// E6 [M4b] - a swallowed "=======" separator must not apply silently.
+// ---------------------------------------------------------------------------
+
+test("E6 asks before applying a REPLACE that contains a separator-like line", async () => {
+  const root = await makeRoot("reptclip-e6-");
+  const file = await writeFile(root, "doc.md", "title\n=======\nbody\n");
+
+  const diff = [
+    "doc.md",
+    "<<<<<<< SEARCH",
+    "title",
+    "=======",
+    "body",
+    "=======",
+    "h2",
+    "body",
+    ">>>>>>> REPLACE",
+  ].join("\n");
+
+  await assert.rejects(
+    () =>
+      applyWithOptions(root, diff, {
+        confirmSuspiciousReplace: async () => false,
+      }),
+    /cancel|declin|abort|separator/i,
+  );
+  assert.equal(await fs.readFile(file, "utf8"), "title\n=======\nbody\n");
+
+  await applyWithOptions(root, diff, {
+    confirmSuspiciousReplace: async () => true,
+  });
+  assert.notEqual(await fs.readFile(file, "utf8"), "title\n=======\nbody\n");
+});
+
+// ---------------------------------------------------------------------------
+// E7 - .gitignore must agree with git when a deeper file re-includes a path.
+// ---------------------------------------------------------------------------
+
+test("E7 honours a nested .gitignore negation that overrides a root pattern", async () => {
+  const root = await makeRoot("reptclip-e7-");
+  await writeFile(root, ".gitignore", "*.log\n");
+  await writeFile(root, "nested/.gitignore", "!keep.log\n");
+  await writeFile(root, "nested/keep.log", "kept\n");
+  await writeFile(root, "nested/other.log", "skipped\n");
+
+  const files = await collectNonIgnoredFiles(root);
+
+  assert.ok(files.includes("nested/keep.log"), "git re-includes nested/keep.log");
+  assert.ok(!files.includes("nested/other.log"));
+  assert.equal((await createEmbeddingGuard(root)("nested/keep.log")).ok, true);
+});
+
+// ---------------------------------------------------------------------------
+// E10 - legitimate flows must keep working after the fixes.
+// ---------------------------------------------------------------------------
+
+test("E10 exact, fuzzy, create, delete and a three-step undo/redo round trip", async () => {
+  const root = await makeRoot("reptclip-e10-");
+  const file = await writeFile(root, "src/counter.js", "let value = 1;\n");
+
+  const first = await applyDiffs(root, block("src/counter.js", "let value = 1;", "let value = 2;"));
+  assert.equal(await fs.readFile(file, "utf8"), "let value = 2;\n");
+
+  const fuzzyRoot = await makeRoot("reptclip-e10f-");
+  const fuzzyFile = await writeFile(
+    fuzzyRoot,
+    "src/drift.js",
+    "if (value) {\n    console.log(value);\n}\n",
+  );
+  const fuzzy = await applyDiffs(
+    fuzzyRoot,
+    [
+      "src/drift.js",
+      "<<<<<<< SEARCH",
+      "if (value) {",
+      "  console.log(value);",
+      "}",
+      "=======",
+      'if (value) {\n  console.log("updated");\n}',
+      ">>>>>>> REPLACE",
+    ].join("\n"),
+  );
+  assert.equal(fuzzy.fuzzy, 1);
+  assert.equal(
+    await fs.readFile(fuzzyFile, "utf8"),
+    'if (value) {\n  console.log("updated");\n}\n',
+  );
+
+  const created = await applyDiffs(root, block("notes.txt", "", "hello"));
+  assert.equal(created.created, 1);
+  assert.equal(await fs.readFile(path.join(root, "notes.txt"), "utf8"), "hello");
+
+  const deleted = await applyDiffs(root, block("notes.txt", "hello", ""));
+  assert.equal(deleted.deleted, 1);
+  assert.equal(await exists(path.join(root, "notes.txt")), false);
+
+  await applySnapshot(root, first.checkpoint.files, "undo");
+  assert.equal(await fs.readFile(file, "utf8"), "let value = 1;\n");
+  await applySnapshot(root, first.checkpoint.files, "redo");
+  assert.equal(await fs.readFile(file, "utf8"), "let value = 2;\n");
+  await applySnapshot(root, first.checkpoint.files, "undo");
+  assert.equal(await fs.readFile(file, "utf8"), "let value = 1;\n");
+});
