@@ -310,13 +310,18 @@ function findMatch(
   file: string,
 ): { index: number; text: string; replace: string; fuzzy: boolean } {
   const normalizeReplace = (matched: string, value: string): string => {
-    if (matched.includes("\r\n") && !value.includes("\r\n")) {
-      return value.replace(/\n/g, "\r\n");
+    // A single-line SEARCH has no line ending of its own, so fall back to the
+    // file's convention; otherwise a multi-line REPLACE injects LF into a CRLF
+    // file and leaves it with mixed endings.
+    const crlf = matched.includes("\r\n")
+      ? true
+      : matched.includes("\n")
+        ? false
+        : content.includes("\r\n");
+    if (crlf) {
+      return value.includes("\r\n") ? value : value.replace(/\n/g, "\r\n");
     }
-    if (!matched.includes("\r\n") && value.includes("\r\n")) {
-      return value.replace(/\r\n/g, "\n");
-    }
-    return value;
+    return value.includes("\r\n") ? value.replace(/\r\n/g, "\n") : value;
   };
 
   // Pass 0: byte-for-byte exact, in every line-ending combination.
