@@ -149,7 +149,10 @@ export function fingerprintDiff(text: string): string {
 }
 
 /** Resolves a diff path against the workspace root, rejecting escapes. */
-function resolveFile(rootDir: string, relative: string): string {
+async function resolveFile(
+  rootDir: string,
+  relative: string,
+): Promise<string> {
   const cleaned = relative
     .replace(/\\/g, "/")
     .replace(/^\.\//, "")
@@ -163,7 +166,57 @@ function resolveFile(rootDir: string, relative: string): string {
   ) {
     throw new Error(`Diff path escapes the workspace: ${relative}`);
   }
-  return abs;
+
+  // Lexical containment is not enough: a directory junction or symlink inside
+  // the workspace makes `root/link/...` look local while the write lands
+  // somewhere else. Resolve the real path of the deepest existing ancestor and
+  // compare it with the real workspace root, so a link can never carry a diff
+  // outside the project.
+  const rootReal = await fs.realpath(root).catch(() => undefined);
+  if (rootReal === undefined) {
+    throw new Error(
+      `Diff path escapes the workspace: ${relative} (workspace root is not readable)`,
+    );
+  }
+
+  let probe = abs;
+  const trailing: string[] = [];
+  for (;;) {
+    let probeReal: string | undefined;
+    try {
+      probeReal = await fs.realpath(probe);
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+        throw new Error(
+          `Diff path cannot be resolved: ${relative} (${(err as Error).message})`,
+        );
+      }
+    }
+    if (probeReal !== undefined) {
+      const resolved = trailing.length
+        ? path.resolve(probeReal, ...trailing)
+        : probeReal;
+      if (!isInside(rootReal, resolved)) {
+        throw new Error(
+          `Diff path escapes the workspace: ${relative} (resolves to ${resolved})`,
+        );
+      }
+      // Keep the original path so the edit targets the path the user sees.
+      return abs;
+    }
+    const parent = path.dirname(probe);
+    if (parent === probe) {
+      throw new Error(`Diff path escapes the workspace: ${relative}`);
+    }
+    trailing.unshift(path.basename(probe));
+    probe = parent;
+  }
+}
+
+/** Whether `candidate` is `root` itself or lives inside it, using OS case rules. */
+function isInside(root: string, candidate: string): boolean {
+  const rel = path.relative(root, candidate);
+  return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
 }
 
 async function readFileIfExists(absPath: string): Promise<string | undefined> {
@@ -375,7 +428,7 @@ export async function applyDiffs(
   const plans = new Map<string, FilePlan>();
   let fuzzy = 0;
   for (const block of blocks) {
-    const absPath = resolveFile(rootDir, block.file);
+    const absPath = await resolveFile(rootDir, block.file);
     let plan = plans.get(absPath);
     if (!plan) {
       const original = await readFileIfExists(absPath);
@@ -460,7 +513,7 @@ export async function applySnapshot(
   const plans: FilePlan[] = [];
   for (const file of files) {
     const target = direction === "undo" ? file.before : file.after;
-    const absPath = resolveFile(rootDir, file.relPath);
+    const absPath = await resolveFile(rootDir, file.relPath);
     const currentContent = await readFileIfExists(absPath);
     const currentExists = currentContent !== undefined;
 
