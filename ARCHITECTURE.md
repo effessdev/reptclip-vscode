@@ -69,6 +69,8 @@ Three layers:
   - `tokenize(input: string): string[]` — Splits raw text into patterns while respecting quoted segments.
 - `types.ts`
   - `defaultUiState(): UiState` — Creates the default persisted UI state for the panel.
+- `uiLayout.test.ts`
+  - `No exported functions` — Asserts that the panel markup, stylesheet and webview script keep the responsive include/exclude split layout.
 
 ### src/panel
 
