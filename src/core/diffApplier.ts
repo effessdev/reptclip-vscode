@@ -54,9 +54,35 @@ export interface ApplyResult extends ApplySummary {
   checkpoint: Checkpoint;
 }
 
+/** Optional hooks a host provides so core code stays free of `vscode` dialogs. */
+export interface ApplyOptions {
+  /** Resolve true to allow writing paths the diff normally refuses to touch. */
+  confirmProtectedPaths?: (paths: string[]) => Promise<boolean>;
+}
+
 const SEARCH_MARKER = "<<<<<<< SEARCH";
 const SEPARATOR = "=======";
 const REPLACE_MARKER = ">>>>>>> REPLACE";
+
+/**
+ * Paths whose write is refused unless the host confirms it. Two classes:
+ *   - anything under `.git`: git executes content from there (hooks, aliases,
+ *     `core.fsmonitor`), so a diff can become a command run on the next git call;
+ *   - `.env` and `.env.*`: the diff comes from a chatbot, and swapping the
+ *     project's environment file is a configuration change the user must see.
+ */
+function protectedPathReason(relative: string): string | undefined {
+  const segments = relative.split(/[\\/]+/).filter(Boolean);
+  const base = (segments[segments.length - 1] ?? "").toLowerCase();
+  if (segments.some((segment) => segment.toLowerCase() === ".git")) {
+    return "inside .git";
+  }
+  if (base === ".env" || base.startsWith(".env.")) {
+    return ".env file";
+  }
+  return undefined;
+}
+
 
 /**
  * Line-based state machine. Outside a block, every non-empty line is treated
@@ -417,10 +443,34 @@ async function commitPlans(
 export async function applyDiffs(
   rootDir: string,
   text: string,
+  options: ApplyOptions = {},
 ): Promise<ApplyResult> {
   const blocks = parseDiffBlocks(text);
   if (blocks.length === 0) {
     throw new Error("Clipboard does not contain any SEARCH/REPLACE blocks.");
+  }
+
+  const protectedPaths = [
+    ...new Set(
+      blocks
+        .filter((block) => protectedPathReason(block.file) !== undefined)
+        .map((block) => block.file),
+    ),
+  ];
+  if (protectedPaths.length > 0) {
+    if (!options.confirmProtectedPaths) {
+      throw new Error(
+        `Refusing to write protected paths: ${protectedPaths.join(", ")}. ` +
+          ".git content is executed by git and .env* changes the project configuration. " +
+          "Enable reptclip.allowProtectedFileWrites to confirm each apply.",
+      );
+    }
+    const confirmed = await options.confirmProtectedPaths(protectedPaths);
+    if (!confirmed) {
+      throw new Error(
+        `Apply cancelled: protected paths were not confirmed (${protectedPaths.join(", ")}).`,
+      );
+    }
   }
 
   // Simulate every block, in order, per file so all validation happens

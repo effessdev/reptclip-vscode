@@ -351,7 +351,24 @@ export class ReptclipViewProvider implements vscode.WebviewViewProvider {
                 }
               }
 
-              const result = await applyDiffs(rootDir, clipboardText);
+              const result = await applyDiffs(
+                rootDir,
+                clipboardText,
+                vscode.workspace
+                  .getConfiguration("reptclip")
+                  .get<boolean>("allowProtectedFileWrites", false)
+                  ? {
+                      confirmProtectedPaths: async (paths) => {
+                        const choice = await vscode.window.showWarningMessage(
+                          `This diff writes protected paths: ${paths.join(", ")}. Git executes content from .git, and .env* changes the project configuration. Apply anyway?`,
+                          { modal: true },
+                          "Apply anyway",
+                        );
+                        return choice === "Apply anyway";
+                      },
+                    }
+                  : {},
+              );
               await saveLastAppliedFingerprint(
                 this.context,
                 rootDir,
