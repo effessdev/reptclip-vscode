@@ -8,6 +8,8 @@ interface IgnoreLevel {
   ig: Ignore;
   /** Only the positive directory patterns (`build/`) from this file. */
   dirOnly: Ignore;
+  /** Raw positive directory patterns, needed to tell a base rule from a deeper one. */
+  dirOnlyLines: string[];
   /** Everything else from this file (file patterns, negations). */
   nonDir: Ignore;
 }
@@ -18,7 +20,13 @@ const ALWAYS_IGNORED_DIR_NAMES = new Set([".git"]);
 function makeLevel(dir: string, content: string | null): IgnoreLevel {
   const empty = ignore();
   if (content === null) {
-    return { dir, ig: empty, dirOnly: empty, nonDir: empty };
+    return {
+      dir,
+      ig: empty,
+      dirOnly: empty,
+      dirOnlyLines: [],
+      nonDir: empty,
+    };
   }
   const lines = content.split(/\r?\n/);
   const dirOnlyLines = lines.filter((line) => {
@@ -34,6 +42,7 @@ function makeLevel(dir: string, content: string | null): IgnoreLevel {
     dir,
     ig: ignore().add(content),
     dirOnly: ignore().add(dirOnlyLines.join("\n")),
+    dirOnlyLines,
     nonDir: ignore().add(nonDirLines.join("\n")),
   };
 }
@@ -267,7 +276,13 @@ function verdictOf(
           );
           // A directory exclusion below the re-included base is independent
           // of the base pattern and must survive (`build/` + `!build/` +
-          // `build/private/` keeps private/ excluded).
+          // `build/private/` keeps private/ excluded). Rules that merely match
+          // the base directory are inherited exclusions, not separate rules.
+          const baseRelDir = `${baseRel}/`;
+          const distinctDirRules = level.dirOnlyLines.filter(
+            (line) => !ignore().add(line).test(baseRelDir).ignored,
+          );
+          const distinctDir = ignore().add(distinctDirRules.join("\n"));
           const belowBase = path
             .relative(reincludeBase, fullPath)
             .split(path.sep)
@@ -279,7 +294,7 @@ function verdictOf(
             const subRel = toPosixPath(
               path.relative(level.dir, subdirectory),
             );
-            if (subRel && level.dirOnly.test(`${subRel}/`).ignored) {
+            if (subRel && distinctDir.ignores(`${subRel}/`)) {
               deeperExclusion = true;
               break;
             }

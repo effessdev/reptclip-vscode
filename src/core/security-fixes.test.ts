@@ -650,6 +650,17 @@ test("P6 keeps a directory exclusion declared below a re-included base", async (
   assert.equal((await guard("build/private/secret.txt")).ok, false);
 });
 
+test("P7 keeps nested files under a re-included base without a separate rule", async () => {
+  const root = await makeRoot("reptclip-p7-");
+  await writeFile(root, ".gitignore", "nested/build/\n");
+  await writeFile(root, "nested/.gitignore", "!build/\n");
+  await writeFile(root, "nested/build/sub/file.txt", "x\n");
+
+  const files = await collectNonIgnoredFiles(root);
+  assert.ok(files.includes("nested/build/sub/file.txt"));
+  assert.equal((await createEmbeddingGuard(root)("nested/build/sub/file.txt")).ok, true);
+});
+
 // ---------------------------------------------------------------------------
 // E10 - legitimate flows must keep working after the fixes.
 // ---------------------------------------------------------------------------
