@@ -780,6 +780,45 @@ test("R4 the guard returns the canonical path for a normal file", async () => {
   assert.equal(await fs.readFile(verdict.absPath!, "utf8"), "export const a = 1;\n");
 });
 
+test("R5 the guard judges the canonical target, not just the alias", async (t) => {
+  const root = await makeRoot("reptclip-r5-");
+  await writeFile(root, ".git/config", "[core]\n");
+  const link = path.join(root, "alias");
+
+  try {
+    await fs.symlink(path.join(root, ".git"), link, "junction");
+  } catch {
+    try {
+      await fs.symlink(path.join(root, ".git"), link, "dir");
+    } catch {
+      t.skip("cannot create a directory link in this environment");
+      return;
+    }
+  }
+
+  const verdict = await createEmbeddingGuard(root)("alias/config");
+  assert.equal(verdict.ok, false);
+  assert.match(verdict.reason ?? "", /\.git/i);
+});
+
+test("R6 the guard rejects an alias to a gitignored file", async (t) => {
+  const root = await makeRoot("reptclip-r6-");
+  await writeFile(root, ".gitignore", ".env\n");
+  await writeFile(root, ".env", "TOKEN=1\n");
+  const link = path.join(root, "envlink");
+
+  try {
+    await fs.symlink(path.join(root, ".env"), link, "file");
+  } catch {
+    t.skip("cannot create a file link in this environment");
+    return;
+  }
+
+  const verdict = await createEmbeddingGuard(root)("envlink");
+  assert.equal(verdict.ok, false);
+  assert.match(verdict.reason ?? "", /ignored/i);
+});
+
 // ---------------------------------------------------------------------------
 // E10 - legitimate flows must keep working after the fixes.
 // ---------------------------------------------------------------------------

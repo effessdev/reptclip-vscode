@@ -159,6 +159,27 @@ export function createEmbeddingGuard(
       return resolved;
     }
 
+    // The lexical name can be an alias: a link inside the project may point at
+    // an ignored file or at .git. Judge the canonical target too.
+    const realRel = path
+      .relative(rootReal, resolved.absPath)
+      .split(path.sep)
+      .filter(Boolean);
+    if (realRel.some((segment) => ALWAYS_IGNORED_DIR_NAMES.has(segment))) {
+      return { ok: false, reason: "inside .git, which is never embedded" };
+    }
+    if (
+      realRel.length > 0 &&
+      realRel.join("/") !== segments.join("/") &&
+      path.normalize(rootReal) === path.normalize(rootNorm)
+    ) {
+      const realAbs = path.join(rootNorm, ...realRel);
+      const realLevels = await levelsFor(path.dirname(realAbs));
+      if (verdictOf(realAbs, false, realLevels) === "ignored") {
+        return { ok: false, reason: "ignored by .gitignore" };
+      }
+    }
+
     const levels = await levelsFor(path.dirname(absPath));
 
     // Git re-includes a directory when a deeper .gitignore negates a pattern
