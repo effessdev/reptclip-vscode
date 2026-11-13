@@ -170,8 +170,7 @@ export function createEmbeddingGuard(
     }
     if (
       realRel.length > 0 &&
-      realRel.join("/") !== segments.join("/") &&
-      path.normalize(rootReal) === path.normalize(rootNorm)
+      realRel.join("/") !== segments.join("/")
     ) {
       const realAbs = path.join(rootNorm, ...realRel);
       const realLevels = await levelsFor(path.dirname(realAbs));
