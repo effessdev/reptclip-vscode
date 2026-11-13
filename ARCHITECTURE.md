@@ -41,6 +41,8 @@ Three layers:
   - `fingerprintDiff(text: string): string` — Creates a stable hash for deduplicating already-applied diffs.
   - `applyDiffs(rootDir: string, text: string): Promise<ApplyResult>` — Validates and applies diff blocks atomically to the workspace, returning a checkpoint for undo.
   - `applySnapshot(rootDir: string, files: FileSnapshot[], direction: "undo" | "redo"): Promise<ApplySummary>` — Restores a checkpoint's before/after file contents to support undo and redo.
+  - `findBufferOverride(overrides: Map<string, string>, absPath: string, caseInsensitive: boolean): string | undefined` — Finds an editor buffer by file identity, falling back to a case-insensitive match on case-insensitive filesystems.
+  - `ApplyOptions`, `SnapshotOptions` — Host hooks for confirmations and dirty-buffer overrides passed into `applyDiffs` / `applySnapshot`.
 - `fileGuards.ts`
   - `readFileSafe(absPath: string): Promise<SafeReadResult>` — Reads files defensively, skipping binary or oversized content.
 - `generateContext.ts`
