@@ -254,17 +254,41 @@ function verdictOf(
     // semantics; passing isDirectory lets patterns like `build/` match.
     const verdict = level.ig.test(isDirectory ? `${rel}/` : rel);
     if (verdict.ignored) {
-      if (reincludeBase && isInsideDir(level.dir, reincludeBase)) {
-        const baseRel =
-          toPosixPath(path.relative(level.dir, reincludeBase)) + "/";
-        const viaDirectoryPattern = level.dirOnly.test(baseRel).ignored;
-        const viaOtherPattern = level.nonDir.ignores(
-          isDirectory ? `${rel}/` : rel,
-        );
-        if (viaDirectoryPattern && !viaOtherPattern) {
-          // This level only ignores us because the ancestor directory was
-          // excluded, and a deeper .gitignore re-included that directory.
-          continue;
+      if (
+        reincludeBase &&
+        reincludeBase !== level.dir &&
+        isInsideDir(level.dir, reincludeBase)
+      ) {
+        const baseRel = toPosixPath(path.relative(level.dir, reincludeBase));
+        if (baseRel) {
+          const viaBaseDirectory = level.dirOnly.test(`${baseRel}/`).ignored;
+          const viaOtherPattern = level.nonDir.ignores(
+            isDirectory ? `${rel}/` : rel,
+          );
+          // A directory exclusion below the re-included base is independent
+          // of the base pattern and must survive (`build/` + `!build/` +
+          // `build/private/` keeps private/ excluded).
+          const belowBase = path
+            .relative(reincludeBase, fullPath)
+            .split(path.sep)
+            .slice(0, -1);
+          let subdirectory = reincludeBase;
+          let deeperExclusion = false;
+          for (const segment of belowBase) {
+            subdirectory = path.join(subdirectory, segment);
+            const subRel = toPosixPath(
+              path.relative(level.dir, subdirectory),
+            );
+            if (subRel && level.dirOnly.test(`${subRel}/`).ignored) {
+              deeperExclusion = true;
+              break;
+            }
+          }
+          if (viaBaseDirectory && !viaOtherPattern && !deeperExclusion) {
+            // This level only ignores us because the ancestor directory was
+            // excluded, and a deeper .gitignore re-included that directory.
+            continue;
+          }
         }
       }
       return "ignored";

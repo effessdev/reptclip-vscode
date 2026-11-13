@@ -622,6 +622,34 @@ test("P2b keeps anchored patterns relative to their own .gitignore", async () =>
   assert.equal((await guard("nested/build/config")).ok, true);
 });
 
+test("P5 does not crash when the re-included base is the level itself", async () => {
+  const root = await makeRoot("reptclip-p5-");
+  await writeFile(root, ".gitignore", "!nested/\n");
+  await writeFile(root, "nested/.gitignore", "*.log\n");
+  await writeFile(root, "nested/debug.log", "x\n");
+  await writeFile(root, "nested/keep.txt", "x\n");
+
+  const files = await collectNonIgnoredFiles(root);
+  assert.equal(files.includes("nested/debug.log"), false);
+  assert.ok(files.includes("nested/keep.txt"));
+  assert.equal((await createEmbeddingGuard(root)("nested/debug.log")).ok, false);
+});
+
+test("P6 keeps a directory exclusion declared below a re-included base", async () => {
+  const root = await makeRoot("reptclip-p6-");
+  await writeFile(root, ".gitignore", "build/\n!build/\nbuild/private/\n");
+  await writeFile(root, "build/keep.txt", "x\n");
+  await writeFile(root, "build/private/secret.txt", "x\n");
+
+  const files = await collectNonIgnoredFiles(root);
+  const guard = createEmbeddingGuard(root);
+
+  assert.ok(files.includes("build/keep.txt"));
+  assert.equal(files.includes("build/private/secret.txt"), false);
+  assert.equal((await guard("build/keep.txt")).ok, true);
+  assert.equal((await guard("build/private/secret.txt")).ok, false);
+});
+
 // ---------------------------------------------------------------------------
 // E10 - legitimate flows must keep working after the fixes.
 // ---------------------------------------------------------------------------

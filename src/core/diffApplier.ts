@@ -319,8 +319,11 @@ export async function findBufferOverride(
 
 async function isSameFile(first: string, second: string): Promise<boolean> {
   try {
-    const [a, b] = await Promise.all([fs.stat(first), fs.stat(second)]);
-    return a.ino !== 0 && a.dev === b.dev && a.ino === b.ino;
+    const [a, b] = await Promise.all([
+      fs.stat(first, { bigint: true }),
+      fs.stat(second, { bigint: true }),
+    ]);
+    return a.ino !== 0n && a.dev === b.dev && a.ino === b.ino;
   } catch {
     return false;
   }
