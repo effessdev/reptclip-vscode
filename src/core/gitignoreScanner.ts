@@ -296,14 +296,14 @@ function verdictOf(
             const subRelDir = `${toPosixPath(
               path.relative(level.dir, subdirectory),
             )}/`;
-            const neutralDir = `x/${toPosixPath(
+            const suffixDir = `${toPosixPath(
               path.relative(reincludeBase, subdirectory),
             )}/`;
             const independent = dirRules.some(
               (rule) =>
                 rule.ig.test(subRelDir).ignored &&
                 (!rule.ig.test(baseRelDir).ignored ||
-                  rule.ig.test(neutralDir).ignored),
+                  rule.ig.test(suffixDir).ignored),
             );
             if (independent) {
               deeperExclusion = true;

@@ -676,6 +676,20 @@ test("P8 keeps a deeper match of an unanchored rule that also matches the base",
   assert.equal((await guard("build/sub/build/secret.txt")).ok, false);
 });
 
+test("P9 does not let a synthetic prefix create a directory match", async () => {
+  const root = await makeRoot("reptclip-p9-");
+  await writeFile(root, ".gitignore", "x/\n");
+  await writeFile(root, "nested/.gitignore", "!/x/\n");
+  await writeFile(root, "nested/x/sub/file.txt", "x\n");
+
+  const files = await collectNonIgnoredFiles(root);
+  assert.ok(files.includes("nested/x/sub/file.txt"));
+  assert.equal(
+    (await createEmbeddingGuard(root)("nested/x/sub/file.txt")).ok,
+    true,
+  );
+});
+
 // ---------------------------------------------------------------------------
 // E10 - legitimate flows must keep working after the fixes.
 // ---------------------------------------------------------------------------
