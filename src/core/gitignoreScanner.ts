@@ -279,10 +279,12 @@ function verdictOf(
           // `build/private/` keeps private/ excluded). Rules that merely match
           // the base directory are inherited exclusions, not separate rules.
           const baseRelDir = `${baseRel}/`;
-          const distinctDirRules = level.dirOnlyLines.filter(
-            (line) => !ignore().add(line).test(baseRelDir).ignored,
+          const dirRules = level.dirOnlyLines.map((line) => ({
+            ig: ignore().add(line),
+          }));
+          const matchesBase = dirRules.some(
+            (rule) => rule.ig.test(baseRelDir).ignored,
           );
-          const distinctDir = ignore().add(distinctDirRules.join("\n"));
           const belowBase = path
             .relative(reincludeBase, fullPath)
             .split(path.sep)
@@ -291,15 +293,29 @@ function verdictOf(
           let deeperExclusion = false;
           for (const segment of belowBase) {
             subdirectory = path.join(subdirectory, segment);
-            const subRel = toPosixPath(
+            const subRelDir = `${toPosixPath(
               path.relative(level.dir, subdirectory),
+            )}/`;
+            const neutralDir = `x/${toPosixPath(
+              path.relative(reincludeBase, subdirectory),
+            )}/`;
+            const independent = dirRules.some(
+              (rule) =>
+                rule.ig.test(subRelDir).ignored &&
+                (!rule.ig.test(baseRelDir).ignored ||
+                  rule.ig.test(neutralDir).ignored),
             );
-            if (subRel && distinctDir.ignores(`${subRel}/`)) {
+            if (independent) {
               deeperExclusion = true;
               break;
             }
           }
-          if (viaBaseDirectory && !viaOtherPattern && !deeperExclusion) {
+          if (
+            matchesBase &&
+            viaBaseDirectory &&
+            !viaOtherPattern &&
+            !deeperExclusion
+          ) {
             // This level only ignores us because the ancestor directory was
             // excluded, and a deeper .gitignore re-included that directory.
             continue;

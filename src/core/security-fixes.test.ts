@@ -661,6 +661,21 @@ test("P7 keeps nested files under a re-included base without a separate rule", a
   assert.equal((await createEmbeddingGuard(root)("nested/build/sub/file.txt")).ok, true);
 });
 
+test("P8 keeps a deeper match of an unanchored rule that also matches the base", async () => {
+  const root = await makeRoot("reptclip-p8-");
+  await writeFile(root, ".gitignore", "build/\n!/build/\n");
+  await writeFile(root, "build/keep.txt", "x\n");
+  await writeFile(root, "build/sub/build/secret.txt", "x\n");
+
+  const files = await collectNonIgnoredFiles(root);
+  const guard = createEmbeddingGuard(root);
+
+  assert.ok(files.includes("build/keep.txt"));
+  assert.equal(files.includes("build/sub/build/secret.txt"), false);
+  assert.equal((await guard("build/keep.txt")).ok, true);
+  assert.equal((await guard("build/sub/build/secret.txt")).ok, false);
+});
+
 // ---------------------------------------------------------------------------
 // E10 - legitimate flows must keep working after the fixes.
 // ---------------------------------------------------------------------------
