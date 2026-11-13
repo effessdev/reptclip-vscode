@@ -62,6 +62,11 @@ export interface ApplyOptions {
    * disk copy would either miss the block or silently drop unsaved edits.
    */
   bufferOverrides?: Map<string, string>;
+  /**
+   * Called right before anything is written. The host uses it to abort if a
+   * document changed while the diff was being resolved (TOCTOU).
+   */
+  assertBuffersCurrent?: () => void;
   /** Resolve true to allow writing paths the diff normally refuses to touch. */
   confirmProtectedPaths?: (paths: string[]) => Promise<boolean>;
   /**
@@ -75,6 +80,8 @@ export interface ApplyOptions {
 export interface SnapshotOptions {
   /** In-editor buffers that win over the on-disk copy, keyed by absolute path. */
   bufferOverrides?: Map<string, string>;
+  /** Abort if a document changed while undo/redo was being prepared. */
+  assertBuffersCurrent?: () => void;
   /** Resolve true to overwrite files that changed since the checkpoint. */
   confirmConflict?: (paths: string[]) => Promise<boolean>;
 }
@@ -281,6 +288,33 @@ function isInside(root: string, candidate: string): boolean {
   const rel = path.relative(root, candidate);
   return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
 }
+
+/**
+ * Buffer lookup by file identity. The provider keys buffers by
+ * `uri.fsPath`, while a diff path keeps the casing the chatbot typed; on a
+ * case-insensitive filesystem those are the same file but different strings,
+ * so an exact miss falls back to a case-insensitive scan.
+ */
+export function findBufferOverride(
+  overrides: Map<string, string> | undefined,
+  absPath: string,
+  caseInsensitive: boolean,
+): string | undefined {
+  const exact = overrides?.get(absPath);
+  if (exact !== undefined || !caseInsensitive || !overrides) {
+    return exact;
+  }
+  const needle = absPath.toLowerCase();
+  for (const [key, value] of overrides) {
+    if (key.toLowerCase() === needle) {
+      return value;
+    }
+  }
+  return undefined;
+}
+
+/** Filesystems that do not distinguish case by default for this host. */
+const CASE_INSENSITIVE_FS = process.platform === "win32" || process.platform === "darwin";
 
 async function readFileIfExists(absPath: string): Promise<string | undefined> {
   try {
@@ -565,7 +599,7 @@ export async function applyDiffs(
     let plan = plans.get(absPath);
     if (!plan) {
       const original =
-        options.bufferOverrides?.get(absPath) ??
+        findBufferOverride(options.bufferOverrides, absPath, CASE_INSENSITIVE_FS) ??
         (await readFileIfExists(absPath));
       plan = {
         absPath,
@@ -628,6 +662,7 @@ export async function applyDiffs(
     after: plan.deleted ? undefined : plan.content,
   }));
 
+  options.assertBuffersCurrent?.();
   const { modified, created, deleted } = await commitPlans(plans.values());
 
   return {
@@ -663,7 +698,7 @@ export async function applySnapshot(
     const expected = direction === "undo" ? file.after : file.before;
     const { absPath } = await resolveFile(rootDir, file.relPath);
     const currentContent =
-      options.bufferOverrides?.get(absPath) ??
+      findBufferOverride(options.bufferOverrides, absPath, CASE_INSENSITIVE_FS) ??
       (await readFileIfExists(absPath));
     const currentExists = currentContent !== undefined;
 
@@ -711,6 +746,7 @@ export async function applySnapshot(
     }
   }
 
+  options.assertBuffersCurrent?.();
   const { modified, created, deleted } = await commitPlans(plans);
   return { modified, created, deleted, fuzzy: 0 };
 }
