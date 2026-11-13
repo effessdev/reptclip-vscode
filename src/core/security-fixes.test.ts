@@ -110,7 +110,7 @@ test.after(() => {
   (Module as any)._load = originalLoad;
 });
 
-const { applyDiffs, applySnapshot } =
+const { applyDiffs, applySnapshot, findBufferOverride } =
   require("./diffApplier") as typeof import("./diffApplier");
 const { collectNonIgnoredFiles, createEmbeddingGuard } =
   require("./gitignoreScanner") as typeof import("./gitignoreScanner");
@@ -529,6 +529,59 @@ test("E3 undo uses the buffer when checking for later edits", async () => {
     bufferOverrides: buffer,
     confirmConflict: async () => true,
   });
+  assert.equal(await fs.readFile(file, "utf8"), "v1\n");
+});
+
+// ---------------------------------------------------------------------------
+// Post-merge review: buffer identity, directory re-includes, TOCTOU.
+// ---------------------------------------------------------------------------
+
+test("P1 finds a buffer keyed with different casing on a case-insensitive filesystem", () => {
+  const overrides = new Map([["C:\\Repo\\SRC\\a.ts", "buffer"]]);
+
+  assert.equal(
+    findBufferOverride(overrides, "c:\\repo\\src\\A.TS", true),
+    "buffer",
+  );
+  assert.equal(
+    findBufferOverride(overrides, "c:\\repo\\src\\A.TS", false),
+    undefined,
+  );
+  assert.equal(
+    findBufferOverride(overrides, "C:\\Repo\\SRC\\a.ts", false),
+    "buffer",
+  );
+});
+
+test("P2 keeps files under a directory re-included by a deeper .gitignore", async () => {
+  const root = await makeRoot("reptclip-p2-");
+  await writeFile(root, ".gitignore", "nested/build/\n*.log\n");
+  await writeFile(root, "nested/.gitignore", "!build/\n");
+  await writeFile(root, "nested/build/secret.txt", "kept\n");
+  await writeFile(root, "nested/build/debug.log", "still ignored\n");
+
+  const files = await collectNonIgnoredFiles(root);
+  const guard = createEmbeddingGuard(root);
+
+  assert.ok(files.includes("nested/build/secret.txt"));
+  assert.equal(files.includes("nested/build/debug.log"), false);
+  assert.equal((await guard("nested/build/secret.txt")).ok, true);
+  assert.equal((await guard("nested/build/debug.log")).ok, false);
+});
+
+test("P3 aborts when a buffer changes while the diff is being prepared", async () => {
+  const root = await makeRoot("reptclip-p3-");
+  const file = await writeFile(root, "a.txt", "v1\n");
+
+  await assert.rejects(
+    () =>
+      applyDiffs(root, block("a.txt", "v1", "v2"), {
+        assertBuffersCurrent: () => {
+          throw new Error("buffer changed while preparing");
+        },
+      }),
+    /buffer changed/i,
+  );
   assert.equal(await fs.readFile(file, "utf8"), "v1\n");
 });
 
