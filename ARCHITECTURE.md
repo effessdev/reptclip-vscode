@@ -32,6 +32,8 @@ Three layers:
   - `filterCandidates(candidates: string[], prefix: string, limit?: number): string[]` — Ranks and trims path matches for the current input.
 - `core-behavior.test.ts`
   - `No exported functions` — Behavior tests covering the extension's main flows.
+- `security-fixes.test.ts`
+  - `No exported functions` — Regression tests for link escapes, protected write paths, undo conflicts, line endings and parser edge cases.
 - `diff-format.md`
   - `No exported functions` — Embedded markdown describing the diff format shown to users.
 - `diffApplier.ts`
@@ -67,6 +69,8 @@ Three layers:
   - `tokenize(input: string): string[]` — Splits raw text into patterns while respecting quoted segments.
 - `types.ts`
   - `defaultUiState(): UiState` — Creates the default persisted UI state for the panel.
+- `uiLayout.test.ts`
+  - `No exported functions` — Asserts that the panel markup, stylesheet and webview script keep the responsive include/exclude split layout.
 
 ### src/panel
 

@@ -202,6 +202,8 @@ You can uncheck "Copy to clipboard" to turn it off.
 
 - **Only files not excluded by `.gitignore` are ever considered**, using layered, per-directory `.gitignore` parsing (via the `ignore` package) rather than shelling out to git. This isn't just a filter on one feature's candidate list, it's enforced at the single chokepoint every embedded file read passes through, so no feature and no hand-written path list can bypass it.
 
+- **`.gitignore` is a noise filter, not a secret filter.** A `.env` or key file that is not listed there is embedded verbatim and ends up in the chatbot and on the clipboard. Keep secrets ignored, or name them in **Files to exclude**.
+
 - **Oversized and binary files are skipped automatically**, replaced by a descriptive placeholder in the output (limit: 1 MB; binaries detected via NUL-byte sniffing), they still appear in the project structure listing.
 
 - **There is no second implementation for "More Files" to worry about.** Its file list comes from the clipboard instead of the pattern textareas, but the path check and the reads go through the exact same pipeline as Generate. Same `.gitignore` enforcement, same size/binary guards, same Markdown builder. The only difference is what gets wrapped around the files: More Files embeds the listed files alone, no project structure, "Output format", or "Prompt" sections, so a mid-conversation supplement pastes cleanly on top of what the chatbot already has.
@@ -221,6 +223,16 @@ If you have turned on the "Output format" section, the AI will generate the diff
 - **Applying a diff is all-or-nothing**: if any SEARCH block fails to validate (no match, not unique, edits a deleted file, etc.), the entire diff isn't applied, and you get an error message stating the reason.
 
 - **SEARCH blocks support fuzzy matching**, trying an exact match first and only then falling back to tolerant matching: line-ending differences (CRLF/LF), trailing whitespace, shifted indentation, and tabs-vs-spaces. **A unique match is still required at every level**. The number of fuzzy SEARCH blocks (did not match the file byte-for-byte) will be displayed.
+
+- **Dirty editor buffers win over the disk copy.** If a file is open with unsaved changes, matching and the checkpoint use the buffer, so a block that only exists in the editor is found and the unrelated unsaved lines are kept. Nothing is matched against a stale copy anymore.
+
+- **Protected paths are refused by default.** A diff cannot write anything inside `.git` (git executes content from there: hooks, aliases, `core.fsmonitor`) or to `.env` / `.env.*` (swapping the environment file is a configuration change), including when the path reaches them through a link or an NTFS stream alias. Set `reptclip.allowProtectedFileWrites` to `true` to get a confirmation dialog per apply instead of a hard refusal.
+
+- **A diff path must stay inside the workspace, even through symlinks and junctions.** Diff paths are resolved with `fs.realpath` before anything is written, including dangling links, so a link inside the project cannot turn `linked/file.txt` into a write outside it. Hard links are not covered: they are the same file under a local path, so there is no path difference to detect.
+
+- **Inserted lines follow the file's line endings.** A single-line SEARCH used to leave LF lines inside a CRLF file; the replacement is now converted to whichever convention the matched region (or the file) uses.
+
+- **A `=======` line in the REPLACE half asks for confirmation.** It usually means the parser read the second separator as the boundary and the intended SEARCH tail was folded into the replacement, so the edit would change more than intended. Split the block instead, or confirm to apply anyway.
 
 - **The last applied diff won't be silently re-applied**, clicking "Apply Diffs" hashes the parsed SEARCH/REPLACE blocks (so surrounding code fences, line-ending differences, and stray whitespace don't matter) and compares the hash against the last applied diff. That hash is stored persistently per project (only the most recent one is remembered), so the check still holds after restarting VS Code. When it matches, a confirmation dialog asks before re-applying, which you can accept to bypass the guard.
 
@@ -274,5 +286,6 @@ Open VS Code's Settings (`Ctrl+,` / `Cmd+,`) and search for **"ReptClip"** to co
 | `reptclip.defaultFiles`            | `true`  | Whether the **Files** section is checked by default.             |
 | `reptclip.defaultPromptTail`       | `true`  | Whether the **Prompt** section is checked by default.            |
 | `reptclip.defaultOutputFile`       | `""`    | Default value for the **Output file** field.                     |
+| `reptclip.allowProtectedFileWrites` | `false` | Allow diffs that write `.git/**` or `.env*` after a confirmation dialog. |
 
 These can be set at the User level (applies to all projects without saved state) or the Workspace level (applies only within that workspace), using VS Code's normal settings scoping.

@@ -112,6 +112,20 @@ export function createEmbeddingGuard(
       return { ok: false, reason: "ignored by .gitignore" };
     }
 
+    // Git cannot re-include a file whose parent directory is excluded, no
+    // matter what a deeper .gitignore says. The tree scan already skips such a
+    // directory, so the guard has to agree or it would embed files the scan
+    // treats as ignored.
+    const relativeToRoot = path.relative(rootNorm, absPath);
+    let ancestor = rootNorm;
+    for (const segment of relativeToRoot.split(path.sep).slice(0, -1)) {
+      ancestor = path.join(ancestor, segment);
+      const ancestorLevels = await levelsFor(path.dirname(ancestor));
+      if (isIgnored(ancestor, true, ancestorLevels)) {
+        return { ok: false, reason: "ignored by .gitignore" };
+      }
+    }
+
     return { ok: true };
   };
 }
@@ -169,15 +183,24 @@ function isIgnored(
   isDirectory: boolean,
   levels: IgnoreLevel[],
 ): boolean {
-  for (const level of levels) {
+  // Deeper .gitignore files take precedence over their parents, exactly like
+  // git: a nested `!keep.log` re-includes what a root `*.log` excluded. Walk
+  // from the deepest level up and let the first level that has an opinion
+  // decide, including "unignored" ones.
+  for (let index = levels.length - 1; index >= 0; index -= 1) {
+    const level = levels[index];
     const rel = toPosixPath(path.relative(level.dir, fullPath));
     if (!rel || rel.startsWith("..")) {
       continue;
     }
     // The `ignore` package wants directory patterns tested with matching
     // semantics; passing isDirectory lets patterns like `build/` match.
-    if (level.ig.ignores(isDirectory ? `${rel}/` : rel)) {
+    const verdict = level.ig.test(isDirectory ? `${rel}/` : rel);
+    if (verdict.ignored) {
       return true;
+    }
+    if (verdict.unignored) {
+      return false;
     }
   }
   return false;

@@ -54,9 +54,55 @@ export interface ApplyResult extends ApplySummary {
   checkpoint: Checkpoint;
 }
 
+/** Optional hooks a host provides so core code stays free of `vscode` dialogs. */
+export interface ApplyOptions {
+  /**
+   * In-editor buffers that win over the on-disk copy, keyed by absolute path.
+   * A dirty document is the truth the user sees; matching against the stale
+   * disk copy would either miss the block or silently drop unsaved edits.
+   */
+  bufferOverrides?: Map<string, string>;
+  /** Resolve true to allow writing paths the diff normally refuses to touch. */
+  confirmProtectedPaths?: (paths: string[]) => Promise<boolean>;
+  /**
+   * Resolve true to apply a block whose REPLACE contains a `=======` line,
+   * which usually means the SEARCH separator was swallowed by the parser.
+   */
+  confirmSuspiciousReplace?: (files: string[]) => Promise<boolean>;
+}
+
+/** Options for `applySnapshot` (undo/redo). */
+export interface SnapshotOptions {
+  /** In-editor buffers that win over the on-disk copy, keyed by absolute path. */
+  bufferOverrides?: Map<string, string>;
+  /** Resolve true to overwrite files that changed since the checkpoint. */
+  confirmConflict?: (paths: string[]) => Promise<boolean>;
+}
+
 const SEARCH_MARKER = "<<<<<<< SEARCH";
 const SEPARATOR = "=======";
 const REPLACE_MARKER = ">>>>>>> REPLACE";
+
+/**
+ * Paths whose write is refused unless the host confirms it. Two classes:
+ *   - anything under `.git`: git executes content from there (hooks, aliases,
+ *     `core.fsmonitor`), so a diff can become a command run on the next git call;
+ *   - `.env` and `.env.*`: the diff comes from a chatbot, and swapping the
+ *     project's environment file is a configuration change the user must see.
+ *
+ * NTFS alternate data streams are stripped before the comparison: `file.txt::$DATA`
+ * is the same file, so `.env::$DATA` must not slip past the `.env` rule.
+ */
+function isProtectedPath(relative: string): boolean {
+  const segments = relative.split(/[\\/]+/).filter(Boolean);
+  if (segments.some((segment) => segment.split(":")[0].toLowerCase() === ".git")) {
+    return true;
+  }
+  const base = (segments[segments.length - 1] ?? "")
+    .split(":")[0]
+    .toLowerCase();
+  return base === ".env" || base.startsWith(".env.");
+}
 
 /**
  * Line-based state machine. Outside a block, every non-empty line is treated
@@ -148,8 +194,16 @@ export function fingerprintDiff(text: string): string {
   return crypto.createHash("sha256").update(canonical).digest("hex");
 }
 
-/** Resolves a diff path against the workspace root, rejecting escapes. */
-function resolveFile(rootDir: string, relative: string): string {
+/**
+ * Resolves a diff path against the workspace root, rejecting escapes. Returns
+ * the lexical absolute path used for the edit and the workspace-relative real
+ * path, so callers can apply path-based rules to what the write will actually
+ * touch (a link can rename a protected target).
+ */
+async function resolveFile(
+  rootDir: string,
+  relative: string,
+): Promise<{ absPath: string; realRelPath: string }> {
   const cleaned = relative
     .replace(/\\/g, "/")
     .replace(/^\.\//, "")
@@ -163,7 +217,69 @@ function resolveFile(rootDir: string, relative: string): string {
   ) {
     throw new Error(`Diff path escapes the workspace: ${relative}`);
   }
-  return abs;
+
+  // Lexical containment is not enough: a directory junction or symlink inside
+  // the workspace makes `root/link/...` look local while the write lands
+  // somewhere else. Resolve the real path of the deepest existing ancestor and
+  // compare it with the real workspace root, so a link can never carry a diff
+  // outside the project.
+  const rootReal = await fs.realpath(root).catch(() => undefined);
+  if (rootReal === undefined) {
+    throw new Error(
+      `Diff path escapes the workspace: ${relative} (workspace root is not readable)`,
+    );
+  }
+
+  let probe = abs;
+  const trailing: string[] = [];
+  for (;;) {
+    let probeReal: string | undefined;
+    try {
+      probeReal = await fs.realpath(probe);
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+        throw new Error(
+          `Diff path cannot be resolved: ${relative} (${(err as Error).message})`,
+        );
+      }
+      // A dangling link still redirects the write: realpath() cannot follow it,
+      // so it surfaces as ENOENT. lstat() sees the link itself and must reject.
+      const linkInfo = await fs.lstat(probe).catch(() => undefined);
+      if (linkInfo?.isSymbolicLink()) {
+        throw new Error(
+          `Diff path escapes the workspace: ${relative} (dangling link at ${probe})`,
+        );
+      }
+    }
+    if (probeReal !== undefined) {
+      const resolved = trailing.length
+        ? path.resolve(probeReal, ...trailing)
+        : probeReal;
+      if (!isInside(rootReal, resolved)) {
+        throw new Error(
+          `Diff path escapes the workspace: ${relative} (resolves to ${resolved})`,
+        );
+      }
+      // Keep the original path so the edit targets the path the user sees, but
+      // report where the write really lands so protected-path rules can use it.
+      return {
+        absPath: abs,
+        realRelPath: path.relative(rootReal, resolved).split(path.sep).join("/"),
+      };
+    }
+    const parent = path.dirname(probe);
+    if (parent === probe) {
+      throw new Error(`Diff path escapes the workspace: ${relative}`);
+    }
+    trailing.unshift(path.basename(probe));
+    probe = parent;
+  }
+}
+
+/** Whether `candidate` is `root` itself or lives inside it, using OS case rules. */
+function isInside(root: string, candidate: string): boolean {
+  const rel = path.relative(root, candidate);
+  return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
 }
 
 async function readFileIfExists(absPath: string): Promise<string | undefined> {
@@ -217,13 +333,18 @@ function findMatch(
   file: string,
 ): { index: number; text: string; replace: string; fuzzy: boolean } {
   const normalizeReplace = (matched: string, value: string): string => {
-    if (matched.includes("\r\n") && !value.includes("\r\n")) {
-      return value.replace(/\n/g, "\r\n");
+    // A single-line SEARCH has no line ending of its own, so fall back to the
+    // file's convention; otherwise a multi-line REPLACE injects LF into a CRLF
+    // file and leaves it with mixed endings.
+    const crlf = matched.includes("\r\n")
+      ? true
+      : matched.includes("\n")
+        ? false
+        : content.includes("\r\n");
+    if (crlf) {
+      return value.includes("\r\n") ? value : value.replace(/\n/g, "\r\n");
     }
-    if (!matched.includes("\r\n") && value.includes("\r\n")) {
-      return value.replace(/\r\n/g, "\n");
-    }
-    return value;
+    return value.includes("\r\n") ? value.replace(/\r\n/g, "\n") : value;
   };
 
   // Pass 0: byte-for-byte exact, in every line-ending combination.
@@ -364,21 +485,88 @@ async function commitPlans(
 export async function applyDiffs(
   rootDir: string,
   text: string,
+  options: ApplyOptions = {},
 ): Promise<ApplyResult> {
   const blocks = parseDiffBlocks(text);
   if (blocks.length === 0) {
     throw new Error("Clipboard does not contain any SEARCH/REPLACE blocks.");
   }
 
+  // A `=======` line inside the REPLACE half means the parser took the second
+  // separator as the boundary: the intended SEARCH tail was folded into the
+  // replacement and the edit silently changes more than the author asked for.
+  // It cannot be told apart from a legitimate "======" line in the new code,
+  // so the host has to confirm instead of the parser guessing.
+  const suspiciousReplace = [
+    ...new Set(
+      blocks
+        .filter((block) =>
+          block.replace
+            .split(/\r?\n/)
+            .some((line) => line.trim() === SEPARATOR),
+        )
+        .map((block) => block.file),
+    ),
+  ];
+  if (suspiciousReplace.length > 0) {
+    if (!options.confirmSuspiciousReplace) {
+      throw new Error(
+        `Refusing to apply: the REPLACE block for ${suspiciousReplace.join(", ")} ` +
+          'contains a "=======" line, which usually means a SEARCH separator was ' +
+          "swallowed. Split the edit into separate blocks or confirm explicitly.",
+      );
+    }
+    const confirmed = await options.confirmSuspiciousReplace(suspiciousReplace);
+    if (!confirmed) {
+      throw new Error(
+        `Apply cancelled: the "=======" line in ${suspiciousReplace.join(", ")} was not confirmed.`,
+      );
+    }
+  }
+
+  // Resolve every target before simulating: the protected-path answer must
+  // win over "file already exists" style errors, and the real path is needed
+  // for both the guard and the plan.
+  const resolvedTargets: { absPath: string; realRelPath: string }[] = [];
+  const protectedPaths = new Set<string>();
+  for (const block of blocks) {
+    const target = await resolveFile(rootDir, block.file);
+    resolvedTargets.push(target);
+    // Check both the path the user sees and the path the write really lands on:
+    // a junction can point at `.git`, and an NTFS stream alias can hide `.env`.
+    if (isProtectedPath(block.file) || isProtectedPath(target.realRelPath)) {
+      protectedPaths.add(block.file);
+    }
+  }
+  if (protectedPaths.size > 0) {
+    const files = [...protectedPaths];
+    if (!options.confirmProtectedPaths) {
+      throw new Error(
+        `Refusing to write protected paths: ${files.join(", ")}. ` +
+          ".git content is executed by git and .env* changes the project configuration. " +
+          "Enable reptclip.allowProtectedFileWrites to confirm each apply.",
+      );
+    }
+    const confirmed = await options.confirmProtectedPaths(files);
+    if (!confirmed) {
+      throw new Error(
+        `Apply cancelled: protected paths were not confirmed (${files.join(", ")}).`,
+      );
+    }
+  }
+
   // Simulate every block, in order, per file so all validation happens
   // before anything touches disk.
   const plans = new Map<string, FilePlan>();
   let fuzzy = 0;
-  for (const block of blocks) {
-    const absPath = resolveFile(rootDir, block.file);
+  for (let blockIndex = 0; blockIndex < blocks.length; blockIndex += 1) {
+    const block = blocks[blockIndex];
+    const { absPath } = resolvedTargets[blockIndex];
     let plan = plans.get(absPath);
     if (!plan) {
-      const original = await readFileIfExists(absPath);
+      const original =
+        options.bufferOverrides?.get(absPath) ??
+        (await readFileIfExists(absPath));
       plan = {
         absPath,
         relPath: path
@@ -405,6 +593,13 @@ export async function applyDiffs(
       }
       plan.content += block.replace;
       continue;
+    }
+
+    if (!plan.existed && plan.content === "") {
+      throw new Error(
+        `No match found for the SEARCH block in ${block.file}: the file does not exist. ` +
+          "A file path must be on its own line immediately before <<<<<<< SEARCH.",
+      );
     }
 
     const {
@@ -448,21 +643,33 @@ export async function applyDiffs(
  * Restores a checkpoint's file contents in the given direction: "undo" sets
  * every file back to its pre-apply content (deleting ones that didn't exist
  * yet), "redo" re-applies the post-apply content (deleting ones the original
- * apply had removed). Uses the current on-disk state, not the checkpoint's
- * own `existed` bookkeeping, to decide create-vs-modify, so it still behaves
- * sensibly if a file was touched by hand since the checkpoint was recorded.
+ * apply had removed).
+ *
+ * The current content is compared with the state the checkpoint expects to find
+ * on disk (the "after" side for undo, the "before" side for redo). A mismatch
+ * means the file was edited after the checkpoint was recorded, so restoring it
+ * would destroy that work; nothing is written until the caller confirms.
  */
 export async function applySnapshot(
   rootDir: string,
   files: FileSnapshot[],
   direction: "undo" | "redo",
+  options: SnapshotOptions = {},
 ): Promise<ApplySummary> {
   const plans: FilePlan[] = [];
+  const conflicts: string[] = [];
   for (const file of files) {
     const target = direction === "undo" ? file.before : file.after;
-    const absPath = resolveFile(rootDir, file.relPath);
-    const currentContent = await readFileIfExists(absPath);
+    const expected = direction === "undo" ? file.after : file.before;
+    const { absPath } = await resolveFile(rootDir, file.relPath);
+    const currentContent =
+      options.bufferOverrides?.get(absPath) ??
+      (await readFileIfExists(absPath));
     const currentExists = currentContent !== undefined;
+
+    if (currentExists && currentContent !== expected) {
+      conflicts.push(file.relPath);
+    }
 
     if (target === undefined) {
       if (currentExists) {
@@ -486,6 +693,22 @@ export async function applySnapshot(
       content: target,
       deleted: false,
     });
+  }
+
+  if (conflicts.length > 0) {
+    const action = direction === "undo" ? "Undo" : "Redo";
+    if (!options.confirmConflict) {
+      throw new Error(
+        `Files changed since this diff was recorded: ${conflicts.join(", ")}. ` +
+          `${action} cancelled; revert those files by hand first.`,
+      );
+    }
+    const confirmed = await options.confirmConflict(conflicts);
+    if (!confirmed) {
+      throw new Error(
+        `${action} cancelled: ${conflicts.join(", ")} changed since the diff was applied.`,
+      );
+    }
   }
 
   const { modified, created, deleted } = await commitPlans(plans);
