@@ -73,6 +73,8 @@ export interface EmbedVerdict {
   ok: boolean;
   /** Human-readable cause, shown in the panel when `ok` is false. */
   reason?: string;
+  /** Canonical path to read; set when `ok` is true. */
+  absPath?: string;
 }
 
 /**
@@ -96,6 +98,7 @@ export function createEmbeddingGuard(
   rootDir: string,
 ): (relPath: string) => Promise<EmbedVerdict> {
   const rootNorm = path.normalize(rootDir);
+  const rootRealPromise = fs.realpath(rootNorm).catch(() => undefined);
   const levelsCache = new Map<string, Promise<IgnoreLevel[]>>();
 
   // Ignore levels for `dirAbs`, inherited from its ancestors and extended by
@@ -145,6 +148,17 @@ export function createEmbeddingGuard(
       return { ok: false, reason: "resolves outside the project root" };
     }
 
+    // A link inside the project can point outside it; the guard has to judge
+    // what the read will actually touch, not the spelling of the path.
+    const rootReal = await rootRealPromise;
+    if (rootReal === undefined) {
+      return { ok: false, reason: "project root is not readable" };
+    }
+    const resolved = await resolveRealInside(rootReal, absPath);
+    if (!resolved.ok) {
+      return resolved;
+    }
+
     const levels = await levelsFor(path.dirname(absPath));
 
     // Git re-includes a directory when a deeper .gitignore negates a pattern
@@ -172,8 +186,55 @@ export function createEmbeddingGuard(
       return { ok: false, reason: "ignored by .gitignore" };
     }
 
-    return { ok: true };
+    return { ok: true, absPath: resolved.absPath };
   };
+}
+
+/**
+ * Resolves a path to what the filesystem will actually touch, rejecting a link
+ * that leaves the project (including a dangling one) and reporting a canonical
+ * absolute path for the read.
+ */
+async function resolveRealInside(
+  rootReal: string,
+  absPath: string,
+): Promise<{ ok: true; absPath: string } | { ok: false; reason: string }> {
+  let probe = absPath;
+  const trailing: string[] = [];
+  for (;;) {
+    let real: string | undefined;
+    try {
+      real = await fs.realpath(probe);
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+        return {
+          ok: false,
+          reason: `cannot be resolved (${(err as Error).message})`,
+        };
+      }
+      const linkInfo = await fs.lstat(probe).catch(() => undefined);
+      if (linkInfo?.isSymbolicLink()) {
+        return { ok: false, reason: "resolves through a dangling link" };
+      }
+    }
+    if (real !== undefined) {
+      const resolved = trailing.length
+        ? path.resolve(real, ...trailing)
+        : real;
+      const rel = path.relative(rootReal, resolved);
+      const inside =
+        rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
+      return inside
+        ? { ok: true, absPath: resolved }
+        : { ok: false, reason: "resolves outside the project root" };
+    }
+    const parent = path.dirname(probe);
+    if (parent === probe) {
+      return { ok: false, reason: "resolves outside the project root" };
+    }
+    trailing.unshift(path.basename(probe));
+    probe = parent;
+  }
 }
 
 async function walk(

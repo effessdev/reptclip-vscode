@@ -711,6 +711,75 @@ test("P10 keeps a separately excluded directory inside a re-included base", asyn
   assert.equal((await guard("nested/build/private/secret.txt")).ok, false);
 });
 
+test("R1 the guard rejects a directory link that leaves the project", async (t) => {
+  const root = await makeRoot("reptclip-r1-");
+  const outside = await makeRoot("reptclip-r1-out-");
+  await writeFile(outside, "secret.txt", "secret\n");
+  const link = path.join(root, "link");
+
+  let linked = true;
+  try {
+    await fs.symlink(outside, link, "junction");
+  } catch {
+    try {
+      await fs.symlink(outside, link);
+    } catch {
+      linked = false;
+    }
+  }
+  if (!linked) {
+    t.skip("cannot create a directory link in this environment");
+    return;
+  }
+
+  const verdict = await createEmbeddingGuard(root)("link/secret.txt");
+  assert.equal(verdict.ok, false);
+  assert.match(verdict.reason ?? "", /outside|link/i);
+});
+
+test("R2 the guard rejects a file link that leaves the project", async (t) => {
+  const root = await makeRoot("reptclip-r2-");
+  const outside = await makeRoot("reptclip-r2-out-");
+  await writeFile(outside, "secret.txt", "secret\n");
+  const link = path.join(root, "secret.txt");
+
+  try {
+    await fs.symlink(path.join(outside, "secret.txt"), link, "file");
+  } catch {
+    t.skip("cannot create a file link in this environment");
+    return;
+  }
+
+  const verdict = await createEmbeddingGuard(root)("secret.txt");
+  assert.equal(verdict.ok, false);
+});
+
+test("R3 the guard rejects a dangling link", async (t) => {
+  const root = await makeRoot("reptclip-r3-");
+  const link = path.join(root, "ghost.txt");
+
+  try {
+    await fs.symlink(path.join(root, "missing.txt"), link, "file");
+  } catch {
+    t.skip("cannot create a file link in this environment");
+    return;
+  }
+
+  const verdict = await createEmbeddingGuard(root)("ghost.txt");
+  assert.equal(verdict.ok, false);
+  assert.match(verdict.reason ?? "", /dangling|outside/i);
+});
+
+test("R4 the guard returns the canonical path for a normal file", async () => {
+  const root = await makeRoot("reptclip-r4-");
+  await writeFile(root, "src/app.ts", "export const a = 1;\n");
+
+  const verdict = await createEmbeddingGuard(root)("src/app.ts");
+  assert.equal(verdict.ok, true);
+  assert.ok(verdict.absPath);
+  assert.equal(await fs.readFile(verdict.absPath!, "utf8"), "export const a = 1;\n");
+});
+
 // ---------------------------------------------------------------------------
 // E10 - legitimate flows must keep working after the fixes.
 // ---------------------------------------------------------------------------
