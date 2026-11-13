@@ -690,6 +690,27 @@ test("P9 does not let a synthetic prefix create a directory match", async () => 
   );
 });
 
+test("P10 keeps a separately excluded directory inside a re-included base", async () => {
+  const root = await makeRoot("reptclip-p10-");
+  await writeFile(
+    root,
+    ".gitignore",
+    "nested/build/\nnested/build/private/\n",
+  );
+  await writeFile(root, "nested/.gitignore", "!build/\n");
+  await writeFile(root, "nested/build/private/.gitignore", "!secret.txt\n");
+  await writeFile(root, "nested/build/ok.txt", "ok\n");
+  await writeFile(root, "nested/build/private/secret.txt", "secret\n");
+
+  const files = await collectNonIgnoredFiles(root);
+  const guard = createEmbeddingGuard(root);
+
+  assert.ok(files.includes("nested/build/ok.txt"));
+  assert.equal(files.includes("nested/build/private/secret.txt"), false);
+  assert.equal((await guard("nested/build/ok.txt")).ok, true);
+  assert.equal((await guard("nested/build/private/secret.txt")).ok, false);
+});
+
 // ---------------------------------------------------------------------------
 // E10 - legitimate flows must keep working after the fixes.
 // ---------------------------------------------------------------------------

@@ -285,13 +285,16 @@ function verdictOf(
           const matchesBase = dirRules.some(
             (rule) => rule.ig.test(baseRelDir).ignored,
           );
-          const belowBase = path
+          const relativeSegments = path
             .relative(reincludeBase, fullPath)
             .split(path.sep)
-            .slice(0, -1);
+            .filter(Boolean);
+          const directoriesBelow = isDirectory
+            ? relativeSegments
+            : relativeSegments.slice(0, -1);
           let subdirectory = reincludeBase;
           let deeperExclusion = false;
-          for (const segment of belowBase) {
+          for (const segment of directoriesBelow) {
             subdirectory = path.join(subdirectory, segment);
             const subRelDir = `${toPosixPath(
               path.relative(level.dir, subdirectory),
