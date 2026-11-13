@@ -108,22 +108,30 @@ export function createEmbeddingGuard(
     }
 
     const levels = await levelsFor(path.dirname(absPath));
-    if (isIgnored(absPath, false, levels)) {
-      return { ok: false, reason: "ignored by .gitignore" };
-    }
 
-    // Git cannot re-include a file whose parent directory is excluded, no
-    // matter what a deeper .gitignore says. The tree scan already skips such a
-    // directory, so the guard has to agree or it would embed files the scan
-    // treats as ignored.
+    // Git re-includes a directory when a deeper .gitignore negates a pattern
+    // from an ancestor, and that re-inclusion carries to its contents: a
+    // `nested/build/` exclusion in the root does not hide files under a
+    // `!build/` re-include in `nested/.gitignore`. Walk the ancestors first to
+    // find the innermost re-included directory, then evaluate the file
+    // relative to it for shallower levels.
     const relativeToRoot = path.relative(rootNorm, absPath);
+    let reincludeBase: string | undefined;
     let ancestor = rootNorm;
     for (const segment of relativeToRoot.split(path.sep).slice(0, -1)) {
       ancestor = path.join(ancestor, segment);
       const ancestorLevels = await levelsFor(path.dirname(ancestor));
-      if (isIgnored(ancestor, true, ancestorLevels)) {
+      const verdict = verdictOf(ancestor, true, ancestorLevels, reincludeBase);
+      if (verdict === "ignored") {
         return { ok: false, reason: "ignored by .gitignore" };
       }
+      if (verdict === "unignored") {
+        reincludeBase = ancestor;
+      }
+    }
+
+    if (verdictOf(absPath, false, levels, reincludeBase) === "ignored") {
+      return { ok: false, reason: "ignored by .gitignore" };
     }
 
     return { ok: true };
@@ -135,6 +143,7 @@ async function walk(
   currentDir: string,
   levels: IgnoreLevel[],
   results: string[],
+  reincludeBase?: string,
 ): Promise<void> {
   let levelsForDir = levels;
 
@@ -159,8 +168,14 @@ async function walk(
     }
 
     const fullPath = path.join(currentDir, entry.name);
+    const verdict = verdictOf(
+      fullPath,
+      entry.isDirectory(),
+      levelsForDir,
+      reincludeBase,
+    );
 
-    if (isIgnored(fullPath, entry.isDirectory(), levelsForDir)) {
+    if (verdict === "ignored") {
       continue;
     }
 
@@ -170,7 +185,11 @@ async function walk(
     }
 
     if (entry.isDirectory()) {
-      await walk(rootDir, fullPath, levelsForDir, results);
+      // A directory re-included by a deeper .gitignore re-includes its whole
+      // subtree; shallower levels are then evaluated relative to it.
+      const childBase =
+        verdict === "unignored" ? fullPath : reincludeBase;
+      await walk(rootDir, fullPath, levelsForDir, results, childBase);
     } else if (entry.isFile()) {
       const relFromRoot = toPosixPath(path.relative(rootDir, fullPath));
       results.push(relFromRoot);
@@ -178,18 +197,30 @@ async function walk(
   }
 }
 
-function isIgnored(
+function isInsideDir(parent: string, child: string): boolean {
+  return child === parent || child.startsWith(parent + path.sep);
+}
+
+/**
+ * Effective verdict for one path. Deeper `.gitignore` files take precedence,
+ * exactly like git, and a re-included ancestor (`reincludeBase`) makes
+ * shallower levels see paths relative to that ancestor instead of their own
+ * directory — so a root `build/` pattern does not hide files under a
+ * `!build/` re-include.
+ */
+function verdictOf(
   fullPath: string,
   isDirectory: boolean,
   levels: IgnoreLevel[],
-): boolean {
-  // Deeper .gitignore files take precedence over their parents, exactly like
-  // git: a nested `!keep.log` re-includes what a root `*.log` excluded. Walk
-  // from the deepest level up and let the first level that has an opinion
-  // decide, including "unignored" ones.
+  reincludeBase?: string,
+): "ignored" | "unignored" | "none" {
   for (let index = levels.length - 1; index >= 0; index -= 1) {
     const level = levels[index];
-    const rel = toPosixPath(path.relative(level.dir, fullPath));
+    const anchor =
+      reincludeBase && isInsideDir(level.dir, reincludeBase)
+        ? reincludeBase
+        : level.dir;
+    const rel = toPosixPath(path.relative(anchor, fullPath));
     if (!rel || rel.startsWith("..")) {
       continue;
     }
@@ -197,13 +228,13 @@ function isIgnored(
     // semantics; passing isDirectory lets patterns like `build/` match.
     const verdict = level.ig.test(isDirectory ? `${rel}/` : rel);
     if (verdict.ignored) {
-      return true;
+      return "ignored";
     }
     if (verdict.unignored) {
-      return false;
+      return "unignored";
     }
   }
-  return false;
+  return "none";
 }
 
 async function readFileIfExists(filePath: string): Promise<string | null> {
