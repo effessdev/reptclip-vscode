@@ -37,7 +37,7 @@ Copy the above code block and click "Apply Diffs" in the ReptClip panel to apply
    - To delete a file or a code block, use an empty `REPLACE` block.
 5. **No Placeholders:** Do not use ellipses (`...`), comments like `# rest of code unchanged`, or omitted lines inside `SEARCH` or `REPLACE` blocks.
 6. **Sequential Edits:** If editing multiple parts of the same file, list the `SEARCH/REPLACE` blocks in top-to-bottom order as they appear in the file.
-7. **No Separator Lines Inside `SEARCH`:** The block separator is exactly seven `=` characters on their own line (`=======`). A line with eight or more `=` is not a separator. If the code you are matching contains a `=======` line (for example a Markdown setext heading), split the edit so that line is outside the `SEARCH` block, or edit the file in smaller pieces. A `REPLACE` block that contains such a line is applied only after an explicit confirmation, because it usually means a separator was swallowed.
+7. **No Separator Lines Inside `SEARCH`:** The block separator is exactly seven `=` characters; leading and trailing whitespace on that line is ignored, so an indented `=======` also ends the block. A line with eight or more `=` is not a separator. If the code you are matching contains a `=======` line (for example a Markdown setext heading), split the edit so that line is outside the `SEARCH` block, or edit the file in smaller pieces. A `REPLACE` block that contains such a line is applied only after an explicit confirmation, because it usually means a separator was swallowed.
 
 ### Example
 

@@ -536,20 +536,27 @@ test("E3 undo uses the buffer when checking for later edits", async () => {
 // Post-merge review: buffer identity, directory re-includes, TOCTOU.
 // ---------------------------------------------------------------------------
 
-test("P1 finds a buffer keyed with different casing on a case-insensitive filesystem", () => {
-  const overrides = new Map([["C:\\Repo\\SRC\\a.ts", "buffer"]]);
+test("P1 matches a buffer by file identity, not by host platform", async () => {
+  const root = await makeRoot("reptclip-p1-");
+  const file = await writeFile(root, "a.ts", "disk\n");
+  const differentlyCased = path.join(root, "A.TS");
+  const sameFile = await fs
+    .stat(differentlyCased)
+    .then(() => true)
+    .catch(() => false);
+  const overrides = new Map([[file, "buffer"]]);
 
   assert.equal(
-    findBufferOverride(overrides, "c:\\repo\\src\\A.TS", true),
-    "buffer",
+    await findBufferOverride(overrides, differentlyCased),
+    sameFile ? "buffer" : undefined,
   );
+  assert.equal(await findBufferOverride(overrides, file), "buffer");
   assert.equal(
-    findBufferOverride(overrides, "c:\\repo\\src\\A.TS", false),
+    await findBufferOverride(
+      new Map([["/definitely/missing/a.ts", "buffer"]]),
+      differentlyCased,
+    ),
     undefined,
-  );
-  assert.equal(
-    findBufferOverride(overrides, "C:\\Repo\\SRC\\a.ts", false),
-    "buffer",
   );
 });
 
@@ -583,6 +590,36 @@ test("P3 aborts when a buffer changes while the diff is being prepared", async (
     /buffer changed/i,
   );
   assert.equal(await fs.readFile(file, "utf8"), "v1\n");
+});
+
+test("P3b re-checks buffers after documents are opened for the edit", async () => {
+  const root = await makeRoot("reptclip-p3b-");
+  await writeFile(root, "a.txt", "v1\n");
+  let checks = 0;
+
+  await applyDiffs(root, block("a.txt", "v1", "v2"), {
+    assertBuffersCurrent: () => {
+      checks += 1;
+    },
+  });
+
+  assert.ok(checks >= 2, `expected a re-check before applyEdit, got ${checks}`);
+});
+
+test("P2b keeps anchored patterns relative to their own .gitignore", async () => {
+  const root = await makeRoot("reptclip-p2b-");
+  await writeFile(root, ".gitignore", "/config\nnested/build/\n");
+  await writeFile(root, "nested/.gitignore", "!build/\n");
+  await writeFile(root, "config", "root\n");
+  await writeFile(root, "nested/build/config", "inner\n");
+
+  const files = await collectNonIgnoredFiles(root);
+  const guard = createEmbeddingGuard(root);
+
+  assert.equal(files.includes("config"), false);
+  assert.ok(files.includes("nested/build/config"));
+  assert.equal((await guard("config")).ok, false);
+  assert.equal((await guard("nested/build/config")).ok, true);
 });
 
 // ---------------------------------------------------------------------------

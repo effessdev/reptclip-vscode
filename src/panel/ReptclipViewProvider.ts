@@ -515,22 +515,24 @@ export class ReptclipViewProvider implements vscode.WebviewViewProvider {
   }
 
   /**
-   * Snapshot of every dirty file-backed document, plus a check that none of
-   * them changed between the snapshot and the write (the user may keep typing
-   * while the diff is resolved).
+   * Snapshot of every file-backed document. Dirty buffers replace the stale
+   * disk copy; versions for *all* documents let the host abort if any target
+   * becomes dirty or changes while the diff is resolved.
    */
   private captureBuffers(): {
     buffers: Map<string, string>;
     assertCurrent: () => void;
   } {
     const documents = vscode.workspace.textDocuments.filter(
-      (document) => document.uri.scheme === "file" && document.isDirty,
+      (document) => document.uri.scheme === "file",
     );
     const buffers = new Map<string, string>();
     const versions = new Map<string, number>();
     for (const document of documents) {
-      buffers.set(document.uri.fsPath, document.getText());
       versions.set(document.uri.toString(), document.version);
+      if (document.isDirty) {
+        buffers.set(document.uri.fsPath, document.getText());
+      }
     }
     return {
       buffers,

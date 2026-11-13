@@ -6,9 +6,38 @@ interface IgnoreLevel {
   /** Absolute directory the .gitignore file that produced `ig` lives in. */
   dir: string;
   ig: Ignore;
+  /** Only the positive directory patterns (`build/`) from this file. */
+  dirOnly: Ignore;
+  /** Everything else from this file (file patterns, negations). */
+  nonDir: Ignore;
 }
 
 const ALWAYS_IGNORED_DIR_NAMES = new Set([".git"]);
+
+/** Builds a level, splitting directory patterns so a re-include can be scoped. */
+function makeLevel(dir: string, content: string | null): IgnoreLevel {
+  const empty = ignore();
+  if (content === null) {
+    return { dir, ig: empty, dirOnly: empty, nonDir: empty };
+  }
+  const lines = content.split(/\r?\n/);
+  const dirOnlyLines = lines.filter((line) => {
+    const trimmed = line.trim();
+    return (
+      trimmed.endsWith("/") &&
+      !trimmed.startsWith("!") &&
+      !trimmed.startsWith("#")
+    );
+  });
+  const nonDirLines = lines.filter((line) => !dirOnlyLines.includes(line));
+  return {
+    dir,
+    ig: ignore().add(content),
+    dirOnly: ignore().add(dirOnlyLines.join("\n")),
+    nonDir: ignore().add(nonDirLines.join("\n")),
+  };
+}
+
 
 /**
  * Recursively walks `rootDir` and returns every file's path relative to
@@ -25,7 +54,7 @@ export async function collectNonIgnoredFiles(
   rootDir: string,
 ): Promise<string[]> {
   const results: string[] = [];
-  const rootLevel: IgnoreLevel = { dir: rootDir, ig: ignore() };
+  const rootLevel = makeLevel(rootDir, null);
   await walk(rootDir, rootDir, [rootLevel], results);
   return results.sort();
 }
@@ -74,12 +103,12 @@ export function createEmbeddingGuard(
       const parent = path.dirname(key);
       const inherited =
         key === rootNorm || parent === key
-          ? [{ dir: rootNorm, ig: ignore() }]
+          ? [makeLevel(rootNorm, null)]
           : await levelsFor(parent);
       const content = await readFileIfExists(path.join(key, ".gitignore"));
       return content === null
         ? inherited
-        : [...inherited, { dir: key, ig: ignore().add(content) }];
+        : [...inherited, makeLevel(key, content)];
     })();
 
     levelsCache.set(key, pending);
@@ -150,8 +179,7 @@ async function walk(
   const gitignorePath = path.join(currentDir, ".gitignore");
   const gitignoreContent = await readFileIfExists(gitignorePath);
   if (gitignoreContent !== null) {
-    const ig = ignore().add(gitignoreContent);
-    levelsForDir = [...levels, { dir: currentDir, ig }];
+    levelsForDir = [...levels, makeLevel(currentDir, gitignoreContent)];
   }
 
   let entries: import("fs").Dirent[];
@@ -216,11 +244,9 @@ function verdictOf(
 ): "ignored" | "unignored" | "none" {
   for (let index = levels.length - 1; index >= 0; index -= 1) {
     const level = levels[index];
-    const anchor =
-      reincludeBase && isInsideDir(level.dir, reincludeBase)
-        ? reincludeBase
-        : level.dir;
-    const rel = toPosixPath(path.relative(anchor, fullPath));
+    // Patterns stay anchored to the .gitignore that defined them; only the
+    // *cause* of an ignore is scoped to a re-included directory below.
+    const rel = toPosixPath(path.relative(level.dir, fullPath));
     if (!rel || rel.startsWith("..")) {
       continue;
     }
@@ -228,6 +254,19 @@ function verdictOf(
     // semantics; passing isDirectory lets patterns like `build/` match.
     const verdict = level.ig.test(isDirectory ? `${rel}/` : rel);
     if (verdict.ignored) {
+      if (reincludeBase && isInsideDir(level.dir, reincludeBase)) {
+        const baseRel =
+          toPosixPath(path.relative(level.dir, reincludeBase)) + "/";
+        const viaDirectoryPattern = level.dirOnly.test(baseRel).ignored;
+        const viaOtherPattern = level.nonDir.ignores(
+          isDirectory ? `${rel}/` : rel,
+        );
+        if (viaDirectoryPattern && !viaOtherPattern) {
+          // This level only ignores us because the ancestor directory was
+          // excluded, and a deeper .gitignore re-included that directory.
+          continue;
+        }
+      }
       return "ignored";
     }
     if (verdict.unignored) {
