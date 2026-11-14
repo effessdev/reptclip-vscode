@@ -354,8 +354,10 @@ export class ReptclipViewProvider implements vscode.WebviewViewProvider {
               const allowProtectedWrites = vscode.workspace
                 .getConfiguration("reptclip")
                 .get<boolean>("allowProtectedFileWrites", false);
+              const captured = this.captureBuffers();
               const result = await applyDiffs(rootDir, clipboardText, {
-                bufferOverrides: this.collectDirtyBuffers(),
+                bufferOverrides: captured.buffers,
+                assertBuffersCurrent: captured.assertCurrent,
                 confirmProtectedPaths: allowProtectedWrites
                   ? async (paths) => {
                       const choice = await vscode.window.showWarningMessage(
@@ -424,12 +426,14 @@ export class ReptclipViewProvider implements vscode.WebviewViewProvider {
             }
 
             try {
+              const captured = this.captureBuffers();
               const summary = await applySnapshot(
                 rootDir,
                 checkpoint.files,
                 "undo",
                 {
-                  bufferOverrides: this.collectDirtyBuffers(),
+                  bufferOverrides: captured.buffers,
+                  assertBuffersCurrent: captured.assertCurrent,
                   confirmConflict: (paths) => this.confirmDiscard(paths, "undo"),
                 },
               );
@@ -474,12 +478,14 @@ export class ReptclipViewProvider implements vscode.WebviewViewProvider {
             }
 
             try {
+              const captured = this.captureBuffers();
               const summary = await applySnapshot(
                 rootDir,
                 checkpoint.files,
                 "redo",
                 {
-                  bufferOverrides: this.collectDirtyBuffers(),
+                  bufferOverrides: captured.buffers,
+                  assertBuffersCurrent: captured.assertCurrent,
                   confirmConflict: (paths) => this.confirmDiscard(paths, "redo"),
                 },
               );
@@ -509,18 +515,37 @@ export class ReptclipViewProvider implements vscode.WebviewViewProvider {
   }
 
   /**
-   * Snapshot of every dirty file-backed document. The buffer is what the user
-   * sees, so it replaces the stale disk copy for matching and for conflict
-   * checks; otherwise unsaved edits would be missed or silently dropped.
+   * Snapshot of every file-backed document. Dirty buffers replace the stale
+   * disk copy; versions for *all* documents let the host abort if any target
+   * becomes dirty or changes while the diff is resolved.
    */
-  private collectDirtyBuffers(): Map<string, string> {
+  private captureBuffers(): {
+    buffers: Map<string, string>;
+    assertCurrent: () => void;
+  } {
+    const documents = vscode.workspace.textDocuments.filter(
+      (document) => document.uri.scheme === "file",
+    );
     const buffers = new Map<string, string>();
-    for (const document of vscode.workspace.textDocuments) {
-      if (document.uri.scheme === "file" && document.isDirty) {
+    const versions = new Map<string, number>();
+    for (const document of documents) {
+      versions.set(document.uri.toString(), document.version);
+      if (document.isDirty) {
         buffers.set(document.uri.fsPath, document.getText());
       }
     }
-    return buffers;
+    return {
+      buffers,
+      assertCurrent: () => {
+        for (const document of documents) {
+          if (versions.get(document.uri.toString()) !== document.version) {
+            throw new Error(
+              "A file changed while the diff was being prepared, so nothing was applied. Run Apply Diffs again.",
+            );
+          }
+        }
+      },
+    };
   }
 
   /** Confirms undo/redo when the files changed after the checkpoint. */

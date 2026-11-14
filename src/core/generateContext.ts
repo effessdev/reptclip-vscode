@@ -128,7 +128,7 @@ async function findRejectedPaths(
       continue;
     }
     try {
-      const stat = await fs.stat(path.join(rootDir, rel));
+      const stat = await fs.stat(verdict.absPath ?? path.join(rootDir, rel));
       if (!stat.isFile()) {
         rejected.push({ path: rel, reason: "not a file" });
       }
@@ -170,7 +170,9 @@ async function buildContext(
       continue;
     }
 
-    const absPath = path.join(rootDir, relPath);
+    // Read the canonical path the guard validated; re-joining the user path
+    // would follow a link the guard just rejected.
+    const absPath = verdict.absPath ?? path.join(rootDir, relPath);
     try {
       const result = await readFileSafe(absPath);
       fileContents[relPath] = result.skipped

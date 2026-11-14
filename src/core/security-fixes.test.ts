@@ -110,7 +110,7 @@ test.after(() => {
   (Module as any)._load = originalLoad;
 });
 
-const { applyDiffs, applySnapshot } =
+const { applyDiffs, applySnapshot, findBufferOverride } =
   require("./diffApplier") as typeof import("./diffApplier");
 const { collectNonIgnoredFiles, createEmbeddingGuard } =
   require("./gitignoreScanner") as typeof import("./gitignoreScanner");
@@ -530,6 +530,293 @@ test("E3 undo uses the buffer when checking for later edits", async () => {
     confirmConflict: async () => true,
   });
   assert.equal(await fs.readFile(file, "utf8"), "v1\n");
+});
+
+// ---------------------------------------------------------------------------
+// Post-merge review: buffer identity, directory re-includes, TOCTOU.
+// ---------------------------------------------------------------------------
+
+test("P1 matches a buffer by file identity, not by host platform", async () => {
+  const root = await makeRoot("reptclip-p1-");
+  const file = await writeFile(root, "a.ts", "disk\n");
+  const differentlyCased = path.join(root, "A.TS");
+  const sameFile = await fs
+    .stat(differentlyCased)
+    .then(() => true)
+    .catch(() => false);
+  const overrides = new Map([[file, "buffer"]]);
+
+  assert.equal(
+    await findBufferOverride(overrides, differentlyCased),
+    sameFile ? "buffer" : undefined,
+  );
+  assert.equal(await findBufferOverride(overrides, file), "buffer");
+  assert.equal(
+    await findBufferOverride(
+      new Map([["/definitely/missing/a.ts", "buffer"]]),
+      differentlyCased,
+    ),
+    undefined,
+  );
+});
+
+test("P2 keeps files under a directory re-included by a deeper .gitignore", async () => {
+  const root = await makeRoot("reptclip-p2-");
+  await writeFile(root, ".gitignore", "nested/build/\n*.log\n");
+  await writeFile(root, "nested/.gitignore", "!build/\n");
+  await writeFile(root, "nested/build/secret.txt", "kept\n");
+  await writeFile(root, "nested/build/debug.log", "still ignored\n");
+
+  const files = await collectNonIgnoredFiles(root);
+  const guard = createEmbeddingGuard(root);
+
+  assert.ok(files.includes("nested/build/secret.txt"));
+  assert.equal(files.includes("nested/build/debug.log"), false);
+  assert.equal((await guard("nested/build/secret.txt")).ok, true);
+  assert.equal((await guard("nested/build/debug.log")).ok, false);
+});
+
+test("P3 aborts when a buffer changes while the diff is being prepared", async () => {
+  const root = await makeRoot("reptclip-p3-");
+  const file = await writeFile(root, "a.txt", "v1\n");
+
+  await assert.rejects(
+    () =>
+      applyDiffs(root, block("a.txt", "v1", "v2"), {
+        assertBuffersCurrent: () => {
+          throw new Error("buffer changed while preparing");
+        },
+      }),
+    /buffer changed/i,
+  );
+  assert.equal(await fs.readFile(file, "utf8"), "v1\n");
+});
+
+test("P3b re-checks buffers after documents are opened for the edit", async () => {
+  const root = await makeRoot("reptclip-p3b-");
+  await writeFile(root, "a.txt", "v1\n");
+  let checks = 0;
+
+  await applyDiffs(root, block("a.txt", "v1", "v2"), {
+    assertBuffersCurrent: () => {
+      checks += 1;
+    },
+  });
+
+  assert.ok(checks >= 2, `expected a re-check before applyEdit, got ${checks}`);
+});
+
+test("P2b keeps anchored patterns relative to their own .gitignore", async () => {
+  const root = await makeRoot("reptclip-p2b-");
+  await writeFile(root, ".gitignore", "/config\nnested/build/\n");
+  await writeFile(root, "nested/.gitignore", "!build/\n");
+  await writeFile(root, "config", "root\n");
+  await writeFile(root, "nested/build/config", "inner\n");
+
+  const files = await collectNonIgnoredFiles(root);
+  const guard = createEmbeddingGuard(root);
+
+  assert.equal(files.includes("config"), false);
+  assert.ok(files.includes("nested/build/config"));
+  assert.equal((await guard("config")).ok, false);
+  assert.equal((await guard("nested/build/config")).ok, true);
+});
+
+test("P5 does not crash when the re-included base is the level itself", async () => {
+  const root = await makeRoot("reptclip-p5-");
+  await writeFile(root, ".gitignore", "!nested/\n");
+  await writeFile(root, "nested/.gitignore", "*.log\n");
+  await writeFile(root, "nested/debug.log", "x\n");
+  await writeFile(root, "nested/keep.txt", "x\n");
+
+  const files = await collectNonIgnoredFiles(root);
+  assert.equal(files.includes("nested/debug.log"), false);
+  assert.ok(files.includes("nested/keep.txt"));
+  assert.equal((await createEmbeddingGuard(root)("nested/debug.log")).ok, false);
+});
+
+test("P6 keeps a directory exclusion declared below a re-included base", async () => {
+  const root = await makeRoot("reptclip-p6-");
+  await writeFile(root, ".gitignore", "build/\n!build/\nbuild/private/\n");
+  await writeFile(root, "build/keep.txt", "x\n");
+  await writeFile(root, "build/private/secret.txt", "x\n");
+
+  const files = await collectNonIgnoredFiles(root);
+  const guard = createEmbeddingGuard(root);
+
+  assert.ok(files.includes("build/keep.txt"));
+  assert.equal(files.includes("build/private/secret.txt"), false);
+  assert.equal((await guard("build/keep.txt")).ok, true);
+  assert.equal((await guard("build/private/secret.txt")).ok, false);
+});
+
+test("P7 keeps nested files under a re-included base without a separate rule", async () => {
+  const root = await makeRoot("reptclip-p7-");
+  await writeFile(root, ".gitignore", "nested/build/\n");
+  await writeFile(root, "nested/.gitignore", "!build/\n");
+  await writeFile(root, "nested/build/sub/file.txt", "x\n");
+
+  const files = await collectNonIgnoredFiles(root);
+  assert.ok(files.includes("nested/build/sub/file.txt"));
+  assert.equal((await createEmbeddingGuard(root)("nested/build/sub/file.txt")).ok, true);
+});
+
+test("P8 keeps a deeper match of an unanchored rule that also matches the base", async () => {
+  const root = await makeRoot("reptclip-p8-");
+  await writeFile(root, ".gitignore", "build/\n!/build/\n");
+  await writeFile(root, "build/keep.txt", "x\n");
+  await writeFile(root, "build/sub/build/secret.txt", "x\n");
+
+  const files = await collectNonIgnoredFiles(root);
+  const guard = createEmbeddingGuard(root);
+
+  assert.ok(files.includes("build/keep.txt"));
+  assert.equal(files.includes("build/sub/build/secret.txt"), false);
+  assert.equal((await guard("build/keep.txt")).ok, true);
+  assert.equal((await guard("build/sub/build/secret.txt")).ok, false);
+});
+
+test("P9 does not let a synthetic prefix create a directory match", async () => {
+  const root = await makeRoot("reptclip-p9-");
+  await writeFile(root, ".gitignore", "x/\n");
+  await writeFile(root, "nested/.gitignore", "!/x/\n");
+  await writeFile(root, "nested/x/sub/file.txt", "x\n");
+
+  const files = await collectNonIgnoredFiles(root);
+  assert.ok(files.includes("nested/x/sub/file.txt"));
+  assert.equal(
+    (await createEmbeddingGuard(root)("nested/x/sub/file.txt")).ok,
+    true,
+  );
+});
+
+test("P10 keeps a separately excluded directory inside a re-included base", async () => {
+  const root = await makeRoot("reptclip-p10-");
+  await writeFile(
+    root,
+    ".gitignore",
+    "nested/build/\nnested/build/private/\n",
+  );
+  await writeFile(root, "nested/.gitignore", "!build/\n");
+  await writeFile(root, "nested/build/private/.gitignore", "!secret.txt\n");
+  await writeFile(root, "nested/build/ok.txt", "ok\n");
+  await writeFile(root, "nested/build/private/secret.txt", "secret\n");
+
+  const files = await collectNonIgnoredFiles(root);
+  const guard = createEmbeddingGuard(root);
+
+  assert.ok(files.includes("nested/build/ok.txt"));
+  assert.equal(files.includes("nested/build/private/secret.txt"), false);
+  assert.equal((await guard("nested/build/ok.txt")).ok, true);
+  assert.equal((await guard("nested/build/private/secret.txt")).ok, false);
+});
+
+test("R1 the guard rejects a directory link that leaves the project", async (t) => {
+  const root = await makeRoot("reptclip-r1-");
+  const outside = await makeRoot("reptclip-r1-out-");
+  await writeFile(outside, "secret.txt", "secret\n");
+  const link = path.join(root, "link");
+
+  let linked = true;
+  try {
+    await fs.symlink(outside, link, "junction");
+  } catch {
+    try {
+      await fs.symlink(outside, link);
+    } catch {
+      linked = false;
+    }
+  }
+  if (!linked) {
+    t.skip("cannot create a directory link in this environment");
+    return;
+  }
+
+  const verdict = await createEmbeddingGuard(root)("link/secret.txt");
+  assert.equal(verdict.ok, false);
+  assert.match(verdict.reason ?? "", /outside|link/i);
+});
+
+test("R2 the guard rejects a file link that leaves the project", async (t) => {
+  const root = await makeRoot("reptclip-r2-");
+  const outside = await makeRoot("reptclip-r2-out-");
+  await writeFile(outside, "secret.txt", "secret\n");
+  const link = path.join(root, "secret.txt");
+
+  try {
+    await fs.symlink(path.join(outside, "secret.txt"), link, "file");
+  } catch {
+    t.skip("cannot create a file link in this environment");
+    return;
+  }
+
+  const verdict = await createEmbeddingGuard(root)("secret.txt");
+  assert.equal(verdict.ok, false);
+});
+
+test("R3 the guard rejects a dangling link", async (t) => {
+  const root = await makeRoot("reptclip-r3-");
+  const link = path.join(root, "ghost.txt");
+
+  try {
+    await fs.symlink(path.join(root, "missing.txt"), link, "file");
+  } catch {
+    t.skip("cannot create a file link in this environment");
+    return;
+  }
+
+  const verdict = await createEmbeddingGuard(root)("ghost.txt");
+  assert.equal(verdict.ok, false);
+  assert.match(verdict.reason ?? "", /dangling|outside/i);
+});
+
+test("R4 the guard returns the canonical path for a normal file", async () => {
+  const root = await makeRoot("reptclip-r4-");
+  await writeFile(root, "src/app.ts", "export const a = 1;\n");
+
+  const verdict = await createEmbeddingGuard(root)("src/app.ts");
+  assert.equal(verdict.ok, true);
+  assert.ok(verdict.absPath);
+  assert.equal(await fs.readFile(verdict.absPath!, "utf8"), "export const a = 1;\n");
+});
+
+test("R5 the guard judges the canonical target, not just the alias", async (t) => {
+  const root = await makeRoot("reptclip-r5-");
+  await writeFile(root, ".git/config", "[core]\n");
+  const link = path.join(root, "alias");
+
+  try {
+    await fs.symlink(path.join(root, ".git"), link, "junction");
+  } catch {
+    try {
+      await fs.symlink(path.join(root, ".git"), link, "dir");
+    } catch {
+      t.skip("cannot create a directory link in this environment");
+      return;
+    }
+  }
+
+  const verdict = await createEmbeddingGuard(root)("alias/config");
+  assert.equal(verdict.ok, false);
+  assert.match(verdict.reason ?? "", /\.git/i);
+});
+
+test("R6 the guard rejects an alias to a gitignored file", async (t) => {
+  const root = await makeRoot("reptclip-r6-");
+  await writeFile(root, ".gitignore", ".env\n");
+  await writeFile(root, ".env", "TOKEN=1\n");
+  const link = path.join(root, "envlink");
+
+  try {
+    await fs.symlink(path.join(root, ".env"), link, "file");
+  } catch {
+    t.skip("cannot create a file link in this environment");
+    return;
+  }
+
+  const verdict = await createEmbeddingGuard(root)("envlink");
+  assert.equal(verdict.ok, false);
+  assert.match(verdict.reason ?? "", /ignored/i);
 });
 
 // ---------------------------------------------------------------------------

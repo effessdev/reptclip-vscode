@@ -62,6 +62,11 @@ export interface ApplyOptions {
    * disk copy would either miss the block or silently drop unsaved edits.
    */
   bufferOverrides?: Map<string, string>;
+  /**
+   * Called right before anything is written. The host uses it to abort if a
+   * document changed while the diff was being resolved (TOCTOU).
+   */
+  assertBuffersCurrent?: () => void;
   /** Resolve true to allow writing paths the diff normally refuses to touch. */
   confirmProtectedPaths?: (paths: string[]) => Promise<boolean>;
   /**
@@ -75,6 +80,8 @@ export interface ApplyOptions {
 export interface SnapshotOptions {
   /** In-editor buffers that win over the on-disk copy, keyed by absolute path. */
   bufferOverrides?: Map<string, string>;
+  /** Abort if a document changed while undo/redo was being prepared. */
+  assertBuffersCurrent?: () => void;
   /** Resolve true to overwrite files that changed since the checkpoint. */
   confirmConflict?: (paths: string[]) => Promise<boolean>;
 }
@@ -282,6 +289,46 @@ function isInside(root: string, candidate: string): boolean {
   return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
 }
 
+/**
+ * Buffer lookup by file identity. The provider keys buffers by `uri.fsPath`,
+ * while a diff path keeps the casing the chatbot typed; on a case-insensitive
+ * volume those are the same file but different strings. Platform is not a
+ * reliable proxy (macOS can host case-sensitive APFS volumes, Windows can have
+ * per-directory case sensitivity), so a case-insensitive candidate only wins
+ * when the filesystem reports the same device and inode.
+ */
+export async function findBufferOverride(
+  overrides: Map<string, string> | undefined,
+  absPath: string,
+): Promise<string | undefined> {
+  if (!overrides) {
+    return undefined;
+  }
+  const exact = overrides.get(absPath);
+  if (exact !== undefined) {
+    return exact;
+  }
+  const needle = absPath.toLowerCase();
+  for (const [key, value] of overrides) {
+    if (key.toLowerCase() === needle && (await isSameFile(key, absPath))) {
+      return value;
+    }
+  }
+  return undefined;
+}
+
+async function isSameFile(first: string, second: string): Promise<boolean> {
+  try {
+    const [a, b] = await Promise.all([
+      fs.stat(first, { bigint: true }),
+      fs.stat(second, { bigint: true }),
+    ]);
+    return a.ino !== 0n && a.dev === b.dev && a.ino === b.ino;
+  } catch {
+    return false;
+  }
+}
+
 async function readFileIfExists(absPath: string): Promise<string | undefined> {
   try {
     return await fs.readFile(absPath, "utf8");
@@ -424,6 +471,7 @@ interface FilePlan {
  */
 async function commitPlans(
   plans: Iterable<FilePlan>,
+  assertBuffersCurrent?: () => void,
 ): Promise<{ modified: number; created: number; deleted: number }> {
   const edit = new vscode.WorkspaceEdit();
   let modified = 0;
@@ -451,6 +499,9 @@ async function commitPlans(
     }
   }
 
+  // Opening each document above awaits, so the user can edit a file after the
+  // earlier check. Re-validate immediately before the edit is applied.
+  assertBuffersCurrent?.();
   const applied = await vscode.workspace.applyEdit(edit);
   if (!applied) {
     throw new Error("VS Code refused to apply the workspace edit.");
@@ -565,7 +616,7 @@ export async function applyDiffs(
     let plan = plans.get(absPath);
     if (!plan) {
       const original =
-        options.bufferOverrides?.get(absPath) ??
+        (await findBufferOverride(options.bufferOverrides, absPath)) ??
         (await readFileIfExists(absPath));
       plan = {
         absPath,
@@ -628,7 +679,8 @@ export async function applyDiffs(
     after: plan.deleted ? undefined : plan.content,
   }));
 
-  const { modified, created, deleted } = await commitPlans(plans.values());
+  options.assertBuffersCurrent?.();
+  const { modified, created, deleted } = await commitPlans(plans.values(), options.assertBuffersCurrent);
 
   return {
     modified,
@@ -663,7 +715,7 @@ export async function applySnapshot(
     const expected = direction === "undo" ? file.after : file.before;
     const { absPath } = await resolveFile(rootDir, file.relPath);
     const currentContent =
-      options.bufferOverrides?.get(absPath) ??
+      (await findBufferOverride(options.bufferOverrides, absPath)) ??
       (await readFileIfExists(absPath));
     const currentExists = currentContent !== undefined;
 
@@ -711,6 +763,7 @@ export async function applySnapshot(
     }
   }
 
-  const { modified, created, deleted } = await commitPlans(plans);
+  options.assertBuffersCurrent?.();
+  const { modified, created, deleted } = await commitPlans(plans, options.assertBuffersCurrent);
   return { modified, created, deleted, fuzzy: 0 };
 }
