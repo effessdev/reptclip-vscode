@@ -23,9 +23,12 @@ test("panel keeps include/exclude inputs in a responsive split layout", () => {
   assert.match(css, /pattern-pair/);
   assert.match(css, /pattern-divider/);
   assert.match(css, /@media\s*\(max-width:\s*700px\)/i);
+  assert.match(css, /resize:\s*none/i);
+  assert.match(css, /min-height:\s*calc\(/i);
   assert.match(webviewJs, /matchMedia\s*\(\s*"\(max-width:\s*700px\)"\s*\)/i);
   assert.match(
     webviewJs,
-    /other\.style\.height|style\.height\s*=\s*`\$\{\s*sourceHeight\s*\}px`/i,
+    /style\.height\s*=\s*"auto"|scrollHeight|Math\.max\s*\(|style\.height\s*=\s*`\$\{\s*.*\s*\}px`/i,
   );
+  assert.doesNotMatch(css, /resize:\s*vertical/i);
 });
