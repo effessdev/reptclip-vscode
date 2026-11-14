@@ -68,7 +68,7 @@ body {
 }
 
 .pattern-pair {
-  --pattern-split: 50%;
+  --pattern-split: 66.666%;
   display: flex;
   align-items: stretch;
   gap: 0px;
