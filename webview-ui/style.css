@@ -222,8 +222,7 @@ input[type="text"]:focus {
   line-height: 1.9;
 }
 
-.checkboxes .checkbox,
-.checkboxes .output-file {
+.checkboxes .checkbox {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -232,13 +231,6 @@ input[type="text"]:focus {
   white-space: nowrap;
   vertical-align: middle;
   user-select: none;
-}
-
-.checkboxes .output-file {
-  display: flex;
-  width: 100%;
-  max-width: 100%;
-  margin-right: 0;
 }
 
 .checkboxes input[type="checkbox"] {

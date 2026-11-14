@@ -81,11 +81,9 @@ export function getHtml(
       </section>
     </div>
 
-    <section class="section checkboxes">
-      <label class="output-file">
-        <span>Output file</span>
-        <input type="text" id="output" spellcheck="false" placeholder="out.md" />
-      </label>
+    <section class="section">
+      <label for="output">Output file</label>
+      <input type="text" id="output" spellcheck="false" placeholder="out.md" />
     </section>
   </div>
 
