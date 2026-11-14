@@ -403,14 +403,15 @@
       return;
     }
 
+    const accepted = item.endsWith("/") ? item : `${item} `;
     const text = el.value;
     const caret = el.selectionStart;
     const before = text.slice(0, completion.start);
     const after = text.slice(caret);
-    const newValue = before + item + after;
+    const newValue = before + accepted + after;
 
     el.value = newValue;
-    const newCaret = completion.start + item.length;
+    const newCaret = completion.start + accepted.length;
     el.focus();
     el.setSelectionRange(newCaret, newCaret);
 
@@ -420,7 +421,8 @@
     syncPatternFieldHeights();
     requestHighlightDebounced();
 
-    // Choosing a folder should immediately offer its contents.
+    // Choosing a folder should immediately offer its contents; files add a
+    // separating space so the next token starts cleanly.
     if (item.endsWith("/")) {
       requestSuggestions(el);
     }
